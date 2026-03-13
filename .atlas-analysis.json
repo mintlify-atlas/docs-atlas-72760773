@@ -1,0 +1,137 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "GRVT TypeScript SDK",
+  "projectDescription": "TypeScript SDK for interacting with the GRVT trading platform API and WebSocket streams",
+  "theme": "palm",
+  "primaryColor": "#848c8e",
+  "lightColor": "#11161e",
+  "darkColor": "#cfd0d2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/authentication",
+              "concepts/environments",
+              "concepts/signing"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/rest-client",
+              "guides/websocket-client",
+              "guides/transfers",
+              "guides/deposits-withdrawals",
+              "guides/account-management",
+              "guides/error-handling"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Clients",
+            "pages": [
+              "api/grvt-client",
+              "api/grvt-ws-client"
+            ]
+          },
+          {
+            "group": "Account Operations",
+            "pages": [
+              "api/funding-account-summary",
+              "api/sub-account-summary"
+            ]
+          },
+          {
+            "group": "Transfers & Transactions",
+            "pages": [
+              "api/transfer",
+              "api/deposit",
+              "api/withdraw",
+              "api/deposit-approval"
+            ]
+          },
+          {
+            "group": "History & Queries",
+            "pages": [
+              "api/transfer-history",
+              "api/deposit-history",
+              "api/withdrawal-history"
+            ]
+          },
+          {
+            "group": "WebSocket Subscriptions",
+            "pages": [
+              "api/ws-transfer-feed"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/current-time",
+              "api/chain-mapping",
+              "api/kya-check"
+            ]
+          },
+          {
+            "group": "Types & Enums",
+            "pages": [
+              "api/types/currencies",
+              "api/types/chains",
+              "api/types/transfer-types",
+              "api/types/signatures"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "REST API client with automatic authentication",
+    "WebSocket client with real-time data streaming",
+    "Automatic signature generation for transfers and withdrawals",
+    "Multi-chain support (Ethereum, Arbitrum, BSC, Polygon, Solana, Tron, etc.)",
+    "Transfer history tracking and queries",
+    "Deposit and withdrawal operations",
+    "KYA (Know Your Asset) compliance checking"
+  ],
+  "publicApiSurface": [
+    "GrvtClient",
+    "GrvtWsClient",
+    "GrvtClient.getFundingAccountSummary()",
+    "GrvtClient.getSubAccountSummary()",
+    "GrvtClient.transfer()",
+    "GrvtClient.deposit()",
+    "GrvtClient.withdraw()",
+    "GrvtClient.requestDepositApproval()",
+    "GrvtClient.getTransferHistory()",
+    "GrvtClient.getDepositHistory()",
+    "GrvtClient.getWithdrawalHistory()",
+    "GrvtClient.getCurrentTime()",
+    "GrvtClient.getGravityChainIDFromRhinoChain()",
+    "GrvtClient.kyaCheckRhinoSDADeposit()",
+    "GrvtWsClient.connect()",
+    "GrvtWsClient.disconnect()",
+    "GrvtWsClient.subscribeTransferHistory()",
+    "ECurrency",
+    "EChain",
+    "ETransferType",
+    "EGrvtEnvironment",
+    "EKYACheckStatus"
+  ]
+}
