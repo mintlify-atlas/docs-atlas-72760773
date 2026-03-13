@@ -1,0 +1,71 @@
+---
+title: "Chains"
+description: "Supported blockchain networks in the GRVT SDK"
+---
+
+## EChain
+
+The `EChain` enum defines all supported blockchain networks on the GRVT platform. Chain values represent the chain ID for EVM-compatible chains, or a string identifier for non-EVM chains.
+
+### Mainnet Chains
+
+Production blockchain networks for live trading and transactions.
+
+| Chain | Value | Chain ID | Description |
+|-------|-------|----------|-------------|
+| ETHEREUM | `'1'` | 1 | Ethereum mainnet |
+| ARBITRUM_ONE | `'42161'` | 42161 | Arbitrum One (Layer 2) |
+| BNB_SMART_CHAIN | `'56'` | 56 | BNB Smart Chain (formerly BSC) |
+| BASE | `'8453'` | 8453 | Base (Coinbase Layer 2) |
+| POLYGON | `'137'` | 137 | Polygon PoS |
+| POLYGON_ZKEVM | `'1101'` | 1101 | Polygon zkEVM |
+| ZKSYNC_ERA | `'324'` | 324 | zkSync Era |
+| KAIA | `'8217'` | 8217 | Kaia (formerly Klaytn) |
+| SOLANA | `'solana'` | N/A | Solana mainnet |
+| TRON | `'tron'` | N/A | Tron mainnet |
+
+### Testnet Chains
+
+Test networks for development and testing purposes.
+
+| Chain | Value | Chain ID | Description |
+|-------|-------|----------|-------------|
+| ETHEREUM_SEPOLIA | `'11155111'` | 11155111 | Ethereum Sepolia testnet |
+| ARBITRUM_SEPOLIA | `'421614'` | 421614 | Arbitrum Sepolia testnet |
+| BNB_TESTNET | `'97'` | 97 | BNB Smart Chain testnet |
+| BASE_SEPOLIA | `'84532'` | 84532 | Base Sepolia testnet |
+| POLYGON_AMOY | `'80002'` | 80002 | Polygon Amoy testnet |
+| POLYGON_ZKEVM_CARDONA_TEST | `'2442'` | 2442 | Polygon zkEVM Cardona testnet |
+| ZKSYNC_SEPOLIA | `'300'` | 300 | zkSync Sepolia testnet |
+| KAIA_TESTNET | `'1001'` | 1001 | Kaia testnet |
+| SOLANA_TESTNET | `'solana_test'` | N/A | Solana testnet |
+| TRON_TESTNET | `'tron_test'` | N/A | Tron testnet |
+
+## Usage Example
+
+```typescript
+import { EChain } from '@grvt/sdk';
+
+// Use chain enum in transfers
+const chainId = EChain.ETHEREUM;
+console.log(chainId); // '1'
+
+// For Solana
+const solanaChain = EChain.SOLANA;
+console.log(solanaChain); // 'solana'
+```
+
+## Chain ID Format
+
+<Info>
+**EVM Chains**: Chain IDs are represented as string numbers (e.g., `'1'`, `'42161'`) matching the standard EVM chain ID.
+
+**Non-EVM Chains**: Use descriptive string identifiers (e.g., `'solana'`, `'tron'`).
+</Info>
+
+## Network Selection
+
+When working with the SDK:
+- Use **mainnet chains** for production environments and live transactions
+- Use **testnet chains** for development, testing, and integration work
+- Always verify you're using the correct network before executing transactions

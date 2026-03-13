@@ -1,0 +1,98 @@
+---
+title: "KYA Check for Rhino SDA Deposit"
+description: "Verify Know Your Asset (KYA) status for Rhino Smart Deposit Address deposits"
+---
+
+## Overview
+
+The `kyaCheckRhinoSDADeposit()` method performs a Know Your Asset (KYA) check for deposits made through Rhino Smart Deposit Addresses (SDA). This security verification ensures that deposits meet compliance requirements before they are processed.
+
+## Method Signature
+
+```typescript
+kyaCheckRhinoSDADeposit(
+  senderAddress: string,
+  rhinoChain: string,
+  smartDepositAddress: string
+): Promise<EKYACheckStatus>
+```
+
+## Parameters
+
+<ParamField path="senderAddress" type="string" required>
+  The blockchain address of the sender initiating the deposit
+</ParamField>
+
+<ParamField path="rhinoChain" type="string" required>
+  The Rhino chain identifier where the deposit is being made (e.g., "BNB_SMART_CHAIN", "ETHEREUM", "TRON")
+</ParamField>
+
+<ParamField path="smartDepositAddress" type="string" required>
+  The Smart Deposit Address (SDA) that will receive the deposit
+</ParamField>
+
+## Return Value
+
+<ResponseField name="status" type="EKYACheckStatus" required>
+  The KYA check status for the deposit. Possible values:
+  - `EKYACheckStatus.CLEARED` ("CLEAN") - The deposit has passed KYA verification and can proceed
+  - `EKYACheckStatus.DIRTY` - The deposit has failed KYA verification and should not proceed
+</ResponseField>
+
+## What is KYA?
+
+Know Your Asset (KYA) is a compliance verification process that checks whether funds being deposited meet regulatory and security requirements. This helps ensure that:
+
+- Deposits come from legitimate sources
+- Funds comply with anti-money laundering (AML) regulations
+- Transactions adhere to platform security policies
+
+<Info>
+  The KYA check automatically maps the Rhino chain to the appropriate Gravity chain ID based on your environment configuration before performing the verification.
+</Info>
+
+## Example
+
+```typescript
+import { GrvtClient, EGrvtEnvironment, EKYACheckStatus } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Check KYA (Know Your Asset) status for Rhino SDA deposit
+// This API checks if a deposit through Rhino SDA deposit pass KYA check
+const kyaStatus = await client.kyaCheckRhinoSDADeposit(
+  'sender-address', // The sender's address
+  'BNB_SMART_CHAIN', // Rhino chain name
+  'smart-deposit-address' // Smart deposit address
+);
+// Returns EKYACheckStatus.CLEARED or EKYACheckStatus.DIRTY
+
+if (kyaStatus === EKYACheckStatus.CLEARED) {
+  console.log('Deposit is cleared to proceed');
+} else {
+  console.log('Deposit failed KYA check');
+}
+```
+
+## Error Handling
+
+The method will throw an error if:
+- The Rhino chain identifier is invalid or not supported
+- Authentication fails
+- The API request fails
+
+<Warning>
+  Always perform KYA checks before processing deposits through Rhino Smart Deposit Addresses to ensure compliance and security.
+</Warning>
+
+## Use Cases
+
+- Pre-validate deposits before initiating transfers
+- Implement automated compliance workflows
+- Screen transactions for regulatory compliance
+- Prevent processing of non-compliant deposits

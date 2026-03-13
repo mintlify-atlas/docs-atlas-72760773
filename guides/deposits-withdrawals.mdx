@@ -1,0 +1,403 @@
+---
+title: 'Deposits & Withdrawals'
+description: 'Move funds on and off the GRVT platform'
+---
+
+## Overview
+
+The GRVT SDK provides comprehensive support for depositing and withdrawing funds. Deposits use L1 bridge contracts or direct transfers for Arbitrum, while withdrawals move funds from your GRVT account to external addresses.
+
+## Deposits
+
+Deposits involve a two-step process: requesting approval and executing the deposit transaction.
+
+### Step 1: Request Deposit Approval
+
+<Steps>
+  <Step title="Prepare Deposit Request">
+    First, request a signature for your deposit:
+
+    ```typescript
+    import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+    const client = new GrvtClient({
+      apiKey: 'your-api-key',
+      apiSecret: 'your-api-secret',
+      env: EGrvtEnvironment.DEV,
+    });
+
+    const depositApproval = await client.requestDepositApproval({
+      l1Sender: 'your-l1-address', // L1 address of the sending wallet
+      l2Receiver: 'your-l2-address', // Your L2 address to receive funds
+      l1Token: 'token-contract-address', // L1 token contract address
+      amount: '100' // Amount to deposit
+    });
+
+    console.log('Deposit approval:', depositApproval);
+    ```
+
+    Source: `src/client/GrvtClient.ts:196-203`
+  </Step>
+
+  <Step title="Understanding the Response">
+    The approval response contains a signature with the following structure:
+
+    ```typescript
+    interface IDepositSignature {
+      l1Sender: string;
+      l2Receiver: string;
+      l1Token: string;
+      amount: string;
+      deadline: string;
+      v: number;
+      r: string;
+      s: string;
+    }
+    ```
+
+    Source: `src/types/deposit.ts:10-19`
+  </Step>
+</Steps>
+
+### Step 2: Execute Deposit
+
+Use the deposit method to execute the actual deposit transaction:
+
+```typescript
+import { GrvtClient, EChain, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+const txHash = await client.deposit({
+  privateKey: 'your-wallet-private-key',
+  l1Sender: 'your-l1-address',
+  l2Receiver: 'your-l2-address',
+  amount: '100',
+  chainId: EChain.ETHEREUM
+});
+
+console.log('Deposit transaction hash:', txHash);
+```
+
+Source: `src/client/GrvtClient.ts:182-189`
+
+<Note>
+  The `deposit` method handles both L1 bridge deposits and direct transfers for Arbitrum automatically based on the chain ID.
+</Note>
+
+### Complete Deposit Flow
+
+<CodeGroup>
+```typescript Full Example
+import { GrvtClient, EChain, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+async function depositFunds() {
+  try {
+    // Step 1: Request deposit approval
+    const approval = await client.requestDepositApproval({
+      l1Sender: '0x1234...', // Your L1 wallet address
+      l2Receiver: '0x5678...', // Your L2 address
+      l1Token: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT
+      amount: '100000000' // 100 USDT (6 decimals)
+    });
+
+    console.log('Approval received:', approval);
+
+    // Step 2: Execute the deposit
+    const txHash = await client.deposit({
+      privateKey: process.env.PRIVATE_KEY!,
+      l1Sender: '0x1234...',
+      l2Receiver: '0x5678...',
+      amount: '100000000',
+      chainId: EChain.ETHEREUM
+    });
+
+    console.log('Deposit successful! Transaction hash:', txHash);
+  } catch (error) {
+    console.error('Deposit failed:', error);
+  }
+}
+
+depositFunds();
+```
+
+```typescript With Error Handling
+import { GrvtClient, EChain, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+async function safeDeposit() {
+  try {
+    const approval = await client.requestDepositApproval({
+      l1Sender: '0x1234...',
+      l2Receiver: '0x5678...',
+      l1Token: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+      amount: '100000000'
+    });
+
+    const txHash = await client.deposit({
+      privateKey: process.env.PRIVATE_KEY!,
+      l1Sender: '0x1234...',
+      l2Receiver: '0x5678...',
+      amount: '100000000',
+      chainId: EChain.ETHEREUM
+    });
+
+    return { success: true, txHash };
+  } catch (error) {
+    if (error.message.includes('signing requires API secret')) {
+      console.error('API secret is required');
+    } else if (error.message.includes('Invalid chain')) {
+      console.error('Unsupported chain for deposits');
+    } else {
+      console.error('Deposit error:', error.message);
+    }
+    return { success: false, error };
+  }
+}
+```
+</CodeGroup>
+
+## Withdrawals
+
+Withdraw funds from your GRVT account to an external Ethereum address.
+
+### Basic Withdrawal
+
+```typescript
+import { GrvtClient, ECurrency, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+const withdrawResult = await client.withdraw({
+  from_account_id: 'your-account-id',
+  to_eth_address: 'destination-eth-address',
+  currency: ECurrency.USDT,
+  num_tokens: '100'
+});
+
+console.log('Withdrawal initiated:', withdrawResult);
+```
+
+Source: `src/client/GrvtClient.ts:91-108`
+
+<Note>
+  The `signature` field is optional. If not provided, the SDK will automatically compute it using your `apiSecret`.
+</Note>
+
+### Withdrawal with Signing Options
+
+Control nonce and expiration for your withdrawal:
+
+```typescript
+import { GrvtClient, ECurrency, ISigningOptions, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+const signingOptions: ISigningOptions = {
+  nonce: 12345,
+  expiration: '1746093221289693252'
+};
+
+const withdrawResult = await client.withdraw(
+  {
+    from_account_id: 'your-account-id',
+    to_eth_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+    currency: ECurrency.USDT,
+    num_tokens: '100'
+  },
+  signingOptions
+);
+```
+
+Source: `src/client/GrvtClient.ts:91-108`
+
+### Manual Signature
+
+Provide your own withdrawal signature:
+
+```typescript
+const withdrawResult = await client.withdraw({
+  from_account_id: 'your-account-id',
+  to_eth_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+  currency: ECurrency.USDT,
+  num_tokens: '100',
+  signature: {
+    signer: 'your-address',
+    r: '0x...',
+    s: '0x...',
+    v: 27,
+    expiration: '1746093221289693252',
+    nonce: 12345
+  }
+});
+```
+
+## History Queries
+
+Track your deposit and withdrawal history with time-range queries.
+
+### Deposit History
+
+```typescript
+const depositHistory = await client.getDepositHistory({
+  start_time: '1745600642000785050', // Required: timestamp in nanoseconds
+  end_time: '17588917787741000000' // Required: timestamp in nanoseconds
+});
+
+console.log('Deposits:', depositHistory);
+```
+
+Source: `src/client/GrvtClient.ts:162-167`
+
+### Withdrawal History
+
+```typescript
+const withdrawalHistory = await client.getWithdrawalHistory({
+  start_time: '1745600642000785050', // Required: timestamp in nanoseconds
+  end_time: '17588917787741000000' // Required: timestamp in nanoseconds
+});
+
+console.log('Withdrawals:', withdrawalHistory);
+```
+
+Source: `src/client/GrvtClient.ts:173-180`
+
+<Warning>
+  Both `start_time` and `end_time` are required for history queries. Timestamps must be in nanoseconds since epoch.
+</Warning>
+
+### Pagination and Filtering
+
+Both history methods support additional filtering and pagination parameters. Refer to the request interfaces for available options:
+
+```typescript
+const depositHistory = await client.getDepositHistory({
+  start_time: '1745600642000785050',
+  end_time: '17588917787741000000',
+  // Additional filtering options available in IApiDepositHistoryRequest
+  // such as currency, account_id, etc.
+});
+```
+
+## Chain Support
+
+Deposits and withdrawals support multiple chains. Use the `EChain` enum for chain IDs:
+
+<Tabs>
+  <Tab title="Mainnet">
+    ```typescript
+    import { EChain } from '@grvt/sdk';
+
+    // Supported mainnet chains
+    EChain.ETHEREUM // '1'
+    EChain.ARBITRUM_ONE // '42161'
+    EChain.BASE // '8453'
+    EChain.BNB_SMART_CHAIN // '56'
+    EChain.POLYGON // '137'
+    // ... and more
+    ```
+  </Tab>
+  <Tab title="Testnet">
+    ```typescript
+    import { EChain } from '@grvt/sdk';
+
+    // Supported testnet chains
+    EChain.ETHEREUM_SEPOLIA // '11155111'
+    EChain.ARBITRUM_SEPOLIA // '421614'
+    EChain.BASE_SEPOLIA // '84532'
+    EChain.BNB_TESTNET // '97'
+    EChain.POLYGON_AMOY // '80002'
+    // ... and more
+    ```
+  </Tab>
+</Tabs>
+
+Source: `src/types/chain.ts:1-26`
+
+## KYA (Know Your Asset) Check
+
+For Rhino SDA deposits, verify if the deposit passes KYA checks:
+
+```typescript
+import { EKYACheckStatus } from '@grvt/sdk';
+
+const kyaStatus = await client.kyaCheckRhinoSDADeposit(
+  'sender-address', // The sender's address
+  'BNB_SMART_CHAIN', // Rhino chain name
+  'smart-deposit-address' // Smart deposit address
+);
+
+if (kyaStatus === EKYACheckStatus.CLEARED) {
+  console.log('KYA check passed');
+} else if (kyaStatus === EKYACheckStatus.DIRTY) {
+  console.log('KYA check failed');
+}
+```
+
+Source: `src/client/GrvtClient.ts:252-270`
+
+<Note>
+  The SDK automatically converts Rhino chain names to Gravity chain IDs based on the environment.
+</Note>
+
+## Error Handling
+
+Common deposit and withdrawal errors:
+
+```typescript
+try {
+  const withdrawResult = await client.withdraw({
+    from_account_id: 'your-account-id',
+    to_eth_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+    currency: ECurrency.USDT,
+    num_tokens: '100'
+  });
+} catch (error) {
+  if (error.message.includes('signing requires API secret')) {
+    console.error('API secret is required for withdrawals');
+  } else if (error.message.includes('Invalid Rhino chain')) {
+    console.error('Unsupported chain for this operation');
+  } else if (error.message.includes('start_time') || error.message.includes('end_time')) {
+    console.error('Both start_time and end_time are required for history queries');
+  } else {
+    console.error('Operation failed:', error.message);
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transfers" icon="arrow-right-arrow-left" href="/guides/transfers">
+    Learn about internal transfers
+  </Card>
+  <Card title="Account Management" icon="user" href="/guides/account-management">
+    Manage your accounts
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle errors properly
+  </Card>
+</CardGroup>

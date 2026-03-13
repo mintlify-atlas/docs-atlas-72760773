@@ -1,0 +1,242 @@
+---
+title: 'WebSocket Client'
+description: 'Real-time data streaming with the GrvtWsClient'
+---
+
+## Overview
+
+The `GrvtWsClient` provides real-time data streaming capabilities through WebSocket connections. It supports automatic reconnection, subscription management, and follows the same authentication mechanism as the REST API client.
+
+## Initialization
+
+<Steps>
+  <Step title="Import the WebSocket Client">
+    ```typescript
+    import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+    ```
+  </Step>
+
+  <Step title="Create WebSocket Client Instance">
+    ```typescript
+    const client = new GrvtWsClient({
+      apiKey: 'your-api-key',
+      env: EGrvtEnvironment.DEV,
+    });
+    ```
+
+    <Note>
+      The WebSocket client only requires an `apiKey` for authentication. The `apiSecret` is not needed for WebSocket connections.
+    </Note>
+  </Step>
+</Steps>
+
+## Connecting and Disconnecting
+
+### Establishing a Connection
+
+Connect to the WebSocket server:
+
+```typescript
+await client.connect();
+console.log('Connected to WebSocket');
+```
+
+The connection process:
+1. Refreshes authentication cookies
+2. Establishes WebSocket connection with proper headers
+3. Starts message monitoring
+4. Emits 'open' event on successful connection
+
+Source: `src/client/GrvtWsClient.ts:29-81`
+
+### Graceful Disconnection
+
+Disconnect when you're done:
+
+```typescript
+client.disconnect();
+```
+
+This will:
+- Stop message monitoring
+- Clear reconnection timeouts
+- Close the WebSocket connection
+- Clean up resources
+
+Source: `src/client/GrvtWsClient.ts:145-156`
+
+## Subscribing to Feeds
+
+### Transfer History Subscription
+
+Subscribe to real-time transfer events:
+
+```typescript
+client.subscribeTransferHistory(
+  'main-account-id',
+  (data) => {
+    console.log('Received transfer:', data);
+  },
+  'sub-account-id' // optional
+);
+```
+
+<Warning>
+  You must call `connect()` before subscribing to any feeds. Attempting to subscribe without an active connection will throw an error.
+</Warning>
+
+### Subscription Details
+
+Each subscription:
+- Gets a unique subscription ID
+- Receives messages through the provided callback handler
+- Targets specific account selectors (main account or main + sub account)
+
+Source: `src/client/GrvtWsClient.ts:120-143`
+
+## Reconnection Behavior
+
+The WebSocket client includes robust reconnection logic:
+
+### Automatic Reconnection
+
+<Steps>
+  <Step title="Exponential Backoff">
+    Reconnection attempts use exponential backoff with a maximum delay of 30 seconds:
+
+    ```typescript
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+    ```
+
+    Source: `src/client/GrvtWsClient.ts:105`
+  </Step>
+
+  <Step title="Maximum Retries">
+    The client will attempt to reconnect up to 5 times by default:
+
+    ```typescript
+    private readonly maxReconnectAttempts: number = 5;
+    ```
+
+    Source: `src/client/GrvtWsClient.ts:12`
+  </Step>
+
+  <Step title="Connection Monitoring">
+    A 5-second timeout monitors for incoming messages. If no messages are received within this period, the client automatically reconnects:
+
+    ```typescript
+    private readonly wsReadTimeout: number = 5000; // 5 seconds
+    ```
+
+    Source: `src/client/GrvtWsClient.ts:15`
+  </Step>
+</Steps>
+
+### Reconnection Triggers
+
+Reconnection is triggered by:
+- WebSocket errors
+- Connection closure
+- Message timeout (no messages received within 5 seconds)
+
+Source: `src/client/GrvtWsClient.ts:102-118`
+
+<Warning>
+  **Important:** Subscriptions are NOT automatically restored after reconnection. You must manually resubscribe after a reconnection event.
+</Warning>
+
+## Complete Example
+
+<CodeGroup>
+```typescript Basic Usage
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the WebSocket client
+const client = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Connect to WebSocket
+await client.connect();
+
+// Subscribe to transfer history
+client.subscribeTransferHistory(
+  'main-account-id',
+  (data) => {
+    console.log('Received transfer:', data);
+  },
+  'sub-account-id' // optional
+);
+
+// Disconnect when done
+client.disconnect();
+```
+
+```typescript With Error Handling
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.DEV,
+});
+
+try {
+  await client.connect();
+  console.log('WebSocket connected successfully');
+
+  client.subscribeTransferHistory(
+    'main-account-id',
+    (data) => {
+      console.log('Transfer event:', data);
+    }
+  );
+} catch (error) {
+  console.error('WebSocket connection failed:', error);
+}
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Disconnecting WebSocket...');
+  client.disconnect();
+  process.exit(0);
+});
+```
+</CodeGroup>
+
+## WebSocket Features Summary
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock">
+    Uses cookie-based authentication with automatic refresh
+  </Card>
+  <Card title="Reconnection" icon="rotate">
+    Exponential backoff with configurable maximum retries
+  </Card>
+  <Card title="Monitoring" icon="heartbeat">
+    5-second timeout monitoring with automatic reconnection
+  </Card>
+  <Card title="Subscriptions" icon="bell">
+    Unique IDs for each subscription with callback handlers
+  </Card>
+</CardGroup>
+
+## Important Notes
+
+<Note>
+  - The WebSocket client only supports TDG (Trade Data Gateway) streams currently
+  - WebSocket URL format: `wss://trades.{domain}/ws/full`
+  - Subscriptions must be manually restored after reconnection
+  - Each subscription gets a unique ID for tracking
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="REST Client" icon="plug" href="/guides/rest-client">
+    Learn about the REST API client
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle WebSocket errors and reconnection
+  </Card>
+</CardGroup>

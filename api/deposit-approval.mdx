@@ -1,0 +1,205 @@
+---
+title: "Request Deposit Approval"
+description: "Get approval signature for deposits before executing them"
+---
+
+## Overview
+
+The `requestDepositApproval()` method requests a cryptographic signature from GRVT that approves a deposit before it's executed on the blockchain. This is a critical security step that ensures GRVT is aware of and authorizes the incoming deposit.
+
+## Method Signature
+
+```typescript
+requestDepositApproval(
+  request: IApiDepositApprovalRequest
+): Promise<IDepositApprovalResponse>
+```
+
+## Parameters
+
+<ParamField path="request" type="IApiDepositApprovalRequest" required>
+  The deposit approval request object:
+  
+  <ParamField path="l1Sender" type="string" required>
+    The Layer 1 blockchain address that will send the deposit (your wallet address on the source chain)
+  </ParamField>
+  
+  <ParamField path="l2Receiver" type="string" required>
+    The Layer 2 GRVT address that will receive the deposited funds
+  </ParamField>
+  
+  <ParamField path="l1Token" type="string" required>
+    The Layer 1 token contract address of the asset being deposited
+  </ParamField>
+  
+  <ParamField path="amount" type="string" required>
+    The amount to deposit as a string (in token base units, to preserve precision)
+  </ParamField>
+</ParamField>
+
+## Return Value
+
+<ResponseField name="response" type="IDepositApprovalResponse" required>
+  The deposit approval response containing the signature:
+  
+  <ResponseField name="signature" type="IDepositSignature" required>
+    The approval signature object:
+    
+    <ResponseField name="l1Sender" type="string">
+      Echo of the L1 sender address from the request
+    </ResponseField>
+    
+    <ResponseField name="l2Receiver" type="string">
+      Echo of the L2 receiver address from the request
+    </ResponseField>
+    
+    <ResponseField name="l1Token" type="string">
+      Echo of the L1 token contract address from the request
+    </ResponseField>
+    
+    <ResponseField name="amount" type="string">
+      Echo of the deposit amount from the request
+    </ResponseField>
+    
+    <ResponseField name="deadline" type="string">
+      The expiration timestamp for this approval signature (in nanoseconds)
+    </ResponseField>
+    
+    <ResponseField name="v" type="number">
+      The recovery byte of the ECDSA signature (part of the cryptographic signature)
+    </ResponseField>
+    
+    <ResponseField name="r" type="string">
+      The r value of the ECDSA signature (part of the cryptographic signature)
+    </ResponseField>
+    
+    <ResponseField name="s" type="string">
+      The s value of the ECDSA signature (part of the cryptographic signature)
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+## Deposit Approval Flow
+
+The deposit approval process follows these steps:
+
+1. **Request Approval**: Call `requestDepositApproval()` with deposit details
+2. **Receive Signature**: GRVT returns a cryptographic signature authorizing the deposit
+3. **Execute Deposit**: Use the signature when calling the bridge contract to execute the deposit
+4. **Bridge Verification**: The bridge contract validates the signature before processing
+5. **Fund Transfer**: Upon successful validation, funds are locked on L1 and minted on L2
+
+<Info>
+  The approval signature has an expiration time (`deadline`). You must execute the deposit before this deadline, or you'll need to request a new approval.
+</Info>
+
+## Why Deposit Approval?
+
+Deposit approval serves several important purposes:
+
+- **Security**: Ensures GRVT explicitly authorizes each deposit
+- **KYC/Compliance**: Allows GRVT to verify the deposit meets compliance requirements
+- **Fraud Prevention**: Prevents unauthorized or malicious deposits
+- **Account Validation**: Verifies that the L2 receiver address is valid and active
+
+## Example
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Request deposit approval
+// This API is used to get signature for a deposit before executing it
+const depositApproval = await client.requestDepositApproval({
+  l1Sender: 'your-l1-address', // L1 address of the sending wallet
+  l2Receiver: 'your-l2-address', // Your L2 address to receive the funds
+  l1Token: 'token-contract-address', // L1 token contract address
+  amount: '100' // Amount to deposit
+});
+
+console.log('Approval signature:', depositApproval.signature);
+// Use this signature when calling the bridge contract
+```
+
+## Complete Deposit Workflow
+
+Here's how deposit approval fits into the complete deposit process:
+
+```typescript
+import { GrvtClient, EChain, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Step 1: Request deposit approval
+const approval = await client.requestDepositApproval({
+  l1Sender: '0xYourL1Address...',
+  l2Receiver: '0xYourL2Address...',
+  l1Token: '0xTokenContract...',
+  amount: '100000000' // 100 USDT (6 decimals)
+});
+
+// Step 2: Execute the deposit with the approval signature
+// Note: The deposit() method handles the signature internally
+const txHash = await client.deposit({
+  privateKey: 'your-private-key',
+  l1Sender: '0xYourL1Address...',
+  l2Receiver: '0xYourL2Address...',
+  amount: '100000000',
+  chainId: EChain.ETHEREUM
+});
+
+console.log(`Deposit executed: ${txHash}`);
+```
+
+<Info>
+  In most cases, you don't need to call `requestDepositApproval()` separately. The `deposit()` method handles the approval process internally. Use `requestDepositApproval()` when you need to verify approval before executing or when implementing custom deposit logic.
+</Info>
+
+## Token Amounts
+
+Token amounts should be specified in the token's base units:
+
+- **USDT** (6 decimals): `'100000000'` = 100 USDT
+- **USDC** (6 decimals): `'1000000'` = 1 USDC  
+- **ETH** (18 decimals): `'1000000000000000000'` = 1 ETH
+
+## Error Handling
+
+The method will throw an error if:
+- Invalid L1 sender or L2 receiver address format
+- Invalid token contract address
+- Amount is zero or negative
+- L2 receiver address is not registered with GRVT
+- Authentication fails
+- The deposit request violates compliance rules
+
+<Warning>
+  Always verify all addresses and amounts before requesting approval. The approval signature commits to these exact values.
+</Warning>
+
+## Signature Components
+
+The returned signature contains EIP-712 ECDSA signature components:
+
+- **v, r, s**: Standard ECDSA signature values used for cryptographic verification
+- **deadline**: Timestamp after which the signature is no longer valid
+
+These components are used by the bridge contract to verify that GRVT authorized the deposit.
+
+## Use Cases
+
+- Pre-validate deposits before executing blockchain transactions
+- Implement custom deposit flows with manual transaction building
+- Verify deposit eligibility before requesting funds from users
+- Build deposit interfaces with approval confirmation steps
+- Integrate with external wallets that require approval signatures

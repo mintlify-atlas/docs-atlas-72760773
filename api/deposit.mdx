@@ -1,0 +1,142 @@
+---
+title: "Deposit Funds"
+description: "Deposit funds to your GRVT account via L1 bridge or direct transfer"
+---
+
+## Overview
+
+The `deposit()` method enables you to deposit funds to your GRVT account. It supports two deposit mechanisms:
+
+1. **L1 Bridge**: For most chains, deposits are processed through the Layer 1 bridge contract
+2. **Arbitrum Direct Transfer**: For Arbitrum chains, funds are transferred directly to your L2 address
+
+The method automatically handles the appropriate deposit mechanism based on the chain you specify.
+
+## Method Signature
+
+```typescript
+deposit(options: IDepositOptions): Promise<string>
+```
+
+## Parameters
+
+<ParamField path="options" type="IDepositOptions" required>
+  The deposit options object:
+  
+  <ParamField path="privateKey" type="string" required>
+    The private key of the wallet initiating the deposit. This wallet will sign and pay for the deposit transaction
+  </ParamField>
+  
+  <ParamField path="l1Sender" type="string" required>
+    The Layer 1 blockchain address sending the funds
+  </ParamField>
+  
+  <ParamField path="l2Receiver" type="string" required>
+    The Layer 2 GRVT address that will receive the deposited funds
+  </ParamField>
+  
+  <ParamField path="amount" type="string" required>
+    The amount to deposit as a string (to preserve precision). Should be specified in the token's base units
+  </ParamField>
+  
+  <ParamField path="chainId" type="EChain" required>
+    The blockchain chain ID where the deposit originates (e.g., `EChain.ETHEREUM`, `EChain.ARBITRUM`, `EChain.TRON`)
+  </ParamField>
+</ParamField>
+
+## Return Value
+
+<ResponseField name="transactionHash" type="string" required>
+  The transaction hash of the deposit transaction on the source blockchain. You can use this hash to track the transaction status on a block explorer
+</ResponseField>
+
+## How It Works
+
+### L1 Bridge Deposits (Most Chains)
+
+For most blockchains, the deposit process involves:
+
+1. **Approval**: The method first approves the bridge contract to spend your tokens
+2. **Deposit**: The method then calls the bridge contract to lock your tokens and mint them on GRVT's L2
+3. **Confirmation**: The transaction is submitted and the hash is returned
+
+### Arbitrum Direct Transfer
+
+For Arbitrum chains (since GRVT runs on Arbitrum):
+
+1. **Direct Transfer**: Tokens are transferred directly to your L2 receiver address
+2. **Immediate Availability**: Funds are available immediately without bridge delays
+
+<Info>
+  The SDK automatically detects the chain and uses the appropriate deposit method. You don't need to specify which mechanism to use.
+</Info>
+
+## Example
+
+```typescript
+import { GrvtClient, EChain, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Deposit funds using L1 bridge or direct transfer for Arbitrum
+const txHash = await client.deposit({
+  privateKey: 'your-wallet-private-key',
+  l1Sender: '0xYourL1Address...',
+  l2Receiver: '0xYourL2GRVTAddress...',
+  amount: '100000000', // Amount in token base units (e.g., 100 USDT with 6 decimals)
+  chainId: EChain.ETHEREUM
+});
+
+console.log(`Deposit transaction hash: ${txHash}`);
+// Track the transaction on a block explorer using the returned hash
+```
+
+## Security Considerations
+
+<Warning>
+  **Private Key Handling**: The `privateKey` parameter requires your wallet's private key. Always:
+  - Store private keys securely (use environment variables or secure key management services)
+  - Never commit private keys to version control
+  - Use separate wallets for testing and production
+  - Consider using hardware wallets for large deposits
+</Warning>
+
+## Error Handling
+
+The method will throw an error if:
+- The private key is invalid or improperly formatted
+- Insufficient funds in the L1 sender wallet (for gas or token amount)
+- Token approval fails
+- Bridge contract call fails
+- Network connectivity issues
+- Chain ID is not supported
+
+## Token Amounts
+
+<Info>
+  Token amounts should be specified in the token's base units. For example:
+  - USDT (6 decimals): `'100000000'` = 100 USDT
+  - USDC (6 decimals): `'1000000'` = 1 USDC
+  - ETH (18 decimals): `'1000000000000000000'` = 1 ETH
+</Info>
+
+## Workflow
+
+1. **Request Approval** (Optional): Use `requestDepositApproval()` first if you need a signature before depositing
+2. **Execute Deposit**: Call `deposit()` to initiate the blockchain transaction
+3. **Monitor Transaction**: Use the returned transaction hash to track progress
+4. **Wait for Confirmation**: Depending on the chain, wait for sufficient confirmations
+5. **Verify Balance**: Check your GRVT account balance to confirm the deposit
+
+## Use Cases
+
+- Fund your GRVT trading account from external wallets
+- Implement automated deposit workflows
+- Build on-ramp integrations
+- Support cross-chain deposit functionality
+- Enable programmatic treasury management

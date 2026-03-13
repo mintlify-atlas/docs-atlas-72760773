@@ -1,0 +1,102 @@
+---
+title: "Currencies"
+description: "Supported currencies in the GRVT SDK"
+---
+
+## ECurrency
+
+The `ECurrency` enum defines all supported currencies on the GRVT platform. These include fiat currencies, stablecoins, major cryptocurrencies, and various altcoins.
+
+### Fiat Currencies
+
+| Currency | Value | Description |
+|----------|-------|-------------|
+| USD | `'USD'` | US Dollar fiat currency |
+
+### Stablecoins
+
+| Currency | Value | Description |
+|----------|-------|-------------|
+| USDC | `'USDC'` | USD Coin stablecoin |
+| USDT | `'USDT'` | Tether stablecoin |
+
+### Major Cryptocurrencies
+
+| Currency | Value | Description |
+|----------|-------|-------------|
+| BTC | `'BTC'` | Bitcoin |
+| ETH | `'ETH'` | Ethereum |
+| SOL | `'SOL'` | Solana |
+| BNB | `'BNB'` | Binance Coin |
+| ADA | `'ADA'` | Cardano |
+| XRP | `'XRP'` | Ripple |
+| DOGE | `'DOGE'` | Dogecoin |
+| LINK | `'LINK'` | Chainlink |
+| ATOM | `'ATOM'` | Cosmos |
+
+### Layer 2 & Ecosystem Tokens
+
+| Currency | Value | Description |
+|----------|-------|-------------|
+| ARB | `'ARB'` | Arbitrum |
+| OP | `'OP'` | Optimism |
+| POL | `'POL'` | Polygon |
+| ZK | `'ZK'` | zkSync |
+
+### DeFi Tokens
+
+| Currency | Value | Description |
+|----------|-------|-------------|
+| AAVE | `'AAVE'` | Aave protocol token |
+| ENA | `'ENA'` | Ethena |
+| PENDLE | `'PENDLE'` | Pendle Finance |
+
+### Meme & Community Tokens
+
+| Currency | Value | Description |
+|----------|-------|-------------|
+| KPEPE | `'KPEPE'` | 1000PEPE (scaled) |
+| KSHIB | `'KSHIB'` | 1000SHIB (scaled) |
+| KBONK | `'KBONK'` | 1000BONK (scaled) |
+| WIF | `'WIF'` | Dogwifhat |
+| POPCAT | `'POPCAT'` | Popcat |
+| PENGU | `'PENGU'` | Pudgy Penguins |
+| FARTCOIN | `'FARTCOIN'` | Fartcoin |
+| TRUMP | `'TRUMP'` | TRUMP token |
+
+### AI & Emerging Tokens
+
+| Currency | Value | Description |
+|----------|-------|-------------|
+| AIXBT | `'AIXBT'` | AIXBT token |
+| AI16Z | `'AI16Z'` | AI16Z token |
+| VIRTUAL | `'VIRTUAL'` | Virtual Protocol |
+| KAITO | `'KAITO'` | Kaito |
+
+### Other Tokens
+
+| Currency | Value | Description |
+|----------|-------|-------------|
+| TON | `'TON'` | The Open Network |
+| XLM | `'XLM'` | Stellar Lumens |
+| WLD | `'WLD'` | Worldcoin |
+| SUI | `'SUI'` | Sui Network |
+| JUP | `'JUP'` | Jupiter |
+| BERA | `'BERA'` | Berachain |
+| VINE | `'VINE'` | Vine token |
+| UXLINK | `'UXLINK'` | UXLINK |
+| IP | `'IP'` | IP token |
+
+## Usage Example
+
+```typescript
+import { ECurrency } from '@grvt/sdk';
+
+// Use currency enum in your code
+const currency = ECurrency.USDC;
+console.log(currency); // 'USDC'
+```
+
+<Note>
+The "K" prefix on some tokens (KPEPE, KSHIB, KBONK) represents 1000x scaling, commonly used for tokens with very small individual values.
+</Note>

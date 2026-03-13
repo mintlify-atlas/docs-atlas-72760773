@@ -1,0 +1,216 @@
+---
+title: "Transfer Funds"
+description: "Transfer funds between accounts on the GRVT platform"
+---
+
+## Overview
+
+The `transfer()` method enables you to transfer funds between accounts on the GRVT platform. This method supports both standard transfers and bridge-based transfers (deposits/withdrawals) with automatic cryptographic signing.
+
+## Method Signature
+
+```typescript
+transfer(
+  request: IApiTransferRequest,
+  metadata?: ITransferMetadata,
+  options?: ISigningOptions
+): Promise<IApiTransferResponse>
+```
+
+## Parameters
+
+<ParamField path="request" type="IApiTransferRequest" required>
+  The transfer request object containing transfer details:
+  
+  <ParamField path="from_account_id" type="string" required>
+    The source account ID from which funds will be transferred
+  </ParamField>
+  
+  <ParamField path="from_sub_account_id" type="string">
+    The source sub-account ID (optional for standard transfers)
+  </ParamField>
+  
+  <ParamField path="to_account_id" type="string" required>
+    The destination account ID to receive the funds
+  </ParamField>
+  
+  <ParamField path="to_sub_account_id" type="string">
+    The destination sub-account ID (optional for standard transfers)
+  </ParamField>
+  
+  <ParamField path="currency" type="ECurrency" required>
+    The currency being transferred (e.g., `ECurrency.USDT`, `ECurrency.USDC`)
+  </ParamField>
+  
+  <ParamField path="num_tokens" type="string" required>
+    The amount to transfer as a string (to preserve precision)
+  </ParamField>
+  
+  <ParamField path="transfer_type" type="ETransferType" required>
+    The type of transfer:
+    - `STANDARD` - Regular platform transfer
+    - `NON_NATIVE_BRIDGE_DEPOSIT` - Deposit via external bridge
+    - `NON_NATIVE_BRIDGE_WITHDRAW` - Withdrawal via external bridge
+  </ParamField>
+  
+  <ParamField path="signature" type="ISignature">
+    Optional signature object. If not provided, the SDK will automatically sign the request using your API secret
+  </ParamField>
+</ParamField>
+
+<ParamField path="metadata" type="ITransferMetadata">
+  Optional metadata for bridge transfers:
+  
+  <ParamField path="provider" type="ETransferProvider" required>
+    The transfer provider (e.g., `ETransferProvider.RHINO`)
+  </ParamField>
+  
+  <ParamField path="direction" type="ETransferDirection" required>
+    The transfer direction: `DEPOSIT` or `WITHDRAWAL`
+  </ParamField>
+  
+  <ParamField path="chainid" type="EChain" required>
+    The blockchain chain ID (e.g., `EChain.TRON`, `EChain.ETHEREUM`)
+  </ParamField>
+  
+  <ParamField path="endpoint" type="string" required>
+    The provider endpoint URL
+  </ParamField>
+  
+  <ParamField path="provider_tx_id" type="string">
+    Optional transaction hash from the provider
+  </ParamField>
+  
+  <ParamField path="provider_ref_id" type="string">
+    Optional reference ID from the provider
+  </ParamField>
+</ParamField>
+
+<ParamField path="options" type="ISigningOptions">
+  Optional signing options for automatic signature generation:
+  
+  <ParamField path="nonce" type="number">
+    Custom nonce for the signature (must be non-negative). If not provided, a random nonce is generated
+  </ParamField>
+  
+  <ParamField path="expiration" type="string">
+    Expiration timestamp in nanoseconds. If not provided, defaults to 24 hours from now. Must be within 30 days
+  </ParamField>
+</ParamField>
+
+## Return Value
+
+<ResponseField name="response" type="IApiTransferResponse" required>
+  The transfer response object containing confirmation details and metadata about the completed transfer
+</ResponseField>
+
+## Automatic Signing
+
+The `transfer()` method automatically signs your request if:
+- No `signature` field is provided in the request
+- An API secret is configured in your `GrvtClient`
+
+The SDK will generate a cryptographic signature using your private key, nonce, and expiration time.
+
+<Info>
+  If you provide signing options, the `nonce` must be non-negative and the `expiration` must be within 30 days from now.
+</Info>
+
+## Examples
+
+### Standard Transfer
+
+```typescript
+import { GrvtClient, ECurrency, ETransferType, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Standard transfer
+const transfer1 = await client.transfer({
+  from_account_id: 'from-account-id',
+  from_sub_account_id: 'from-sub-account-id',
+  to_account_id: 'to-account-id',
+  to_sub_account_id: 'to-sub-account-id',
+  currency: ECurrency.USDT,
+  num_tokens: '100',
+  transfer_type: ETransferType.STANDARD,
+});
+```
+
+### Bridge Transfer with Metadata
+
+```typescript
+import {
+  GrvtClient,
+  ECurrency,
+  ETransferType,
+  ITransferMetadata,
+  ETransferProvider,
+  ETransferDirection,
+  EChain,
+  ISigningOptions,
+  EGrvtEnvironment
+} from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Metadata for transfer, you can pass it as the second argument for the transfer API
+const metadata: ITransferMetadata = {
+  provider: ETransferProvider.RHINO,
+  direction: ETransferDirection.DEPOSIT, // Use ETransferDirection.WITHDRAWAL for withdraw flow
+  chainid: EChain.TRON,
+  endpoint,
+  provider_tx_id: tx_hash,
+  provider_ref_id: commit_id,
+};
+
+// Signing options for generating the signature as the third argument for the transfer API
+// Note: nonce must be non-negative and expiration must be within 30 days
+const signingOptions: ISigningOptions = {
+  nonce: 12345,
+  expiration: '1746093221289693252'
+};
+
+const transfer2 = await client.transfer(
+  {
+    from_account_id: 'from-account-id',
+    to_account_id: 'to-account-id',
+    currency: ECurrency.USDT,
+    num_tokens: '100',
+    transfer_type: ETransferType.NON_NATIVE_BRIDGE_DEPOSIT, // Use NON_NATIVE_BRIDGE_WITHDRAW for withdraw flow
+  },
+  metadata,
+  signingOptions
+);
+```
+
+## Error Handling
+
+The method will throw an error if:
+- `transfer_metadata` is set directly in the request instead of using the `metadata` parameter
+- No API secret is configured and no signature is provided
+- The provided signature is invalid
+- Authentication fails
+- The transfer request is rejected by the API
+
+<Warning>
+  Never set `transfer_metadata` directly in the request object. Always use the `metadata` parameter to ensure proper JSON serialization.
+</Warning>
+
+## Use Cases
+
+- Transfer funds between your trading accounts
+- Record bridge deposits from external chains
+- Track bridge withdrawals to external chains
+- Implement automated fund management workflows
+- Support multi-account trading strategies

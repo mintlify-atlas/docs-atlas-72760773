@@ -1,0 +1,652 @@
+---
+title: 'Error Handling'
+description: 'Best practices for handling errors in the GRVT SDK'
+---
+
+## Overview
+
+Proper error handling is essential for building robust applications with the GRVT SDK. This guide covers common error scenarios, error handling patterns, and retry strategies for both REST and WebSocket clients.
+
+## Common Error Scenarios
+
+### Authentication Errors
+
+Authentication errors occur when API credentials are invalid or expired:
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+try {
+  const summary = await client.getFundingAccountSummary();
+} catch (error) {
+  if (error.message.includes('authentication') || error.message.includes('unauthorized')) {
+    console.error('Authentication failed. Please check your API credentials.');
+    // Handle authentication error (e.g., prompt for new credentials)
+  }
+}
+```
+
+<Note>
+  The SDK automatically refreshes authentication cookies when they're close to expiration (within 5 seconds). Source: `src/client/GrvtBaseClient.ts:22-37`
+</Note>
+
+### Missing API Secret
+
+Operations requiring signatures will fail without an API secret:
+
+```typescript
+try {
+  const transfer = await client.transfer({
+    from_account_id: 'from-account-id',
+    to_account_id: 'to-account-id',
+    currency: ECurrency.USDT,
+    num_tokens: '100',
+    transfer_type: ETransferType.STANDARD,
+  });
+} catch (error) {
+  if (error.message === 'signing requires API secret') {
+    console.error('API secret is required for this operation.');
+    console.error('Initialize the client with an apiSecret or provide a manual signature.');
+  }
+}
+```
+
+Source: `src/client/GrvtClient.ts:134`
+
+### Invalid Environment
+
+Providing an unsupported environment will throw an error:
+
+```typescript
+try {
+  const client = new GrvtClient({
+    apiKey: 'your-api-key',
+    env: 'invalid-env' as any, // Invalid environment
+  });
+} catch (error) {
+  if (error.message.includes('Unknown environment')) {
+    console.error('Invalid environment specified.');
+    console.error('Use one of: PRODUCTION, TESTNET, STAGING, DEV');
+  }
+}
+```
+
+Source: `src/client/GrvtBaseClient.ts:154`
+
+### Transfer Metadata Errors
+
+Setting transfer metadata incorrectly will cause errors:
+
+```typescript
+try {
+  const transfer = await client.transfer({
+    from_account_id: 'from-account-id',
+    to_account_id: 'to-account-id',
+    currency: ECurrency.USDT,
+    num_tokens: '100',
+    transfer_type: ETransferType.STANDARD,
+    transfer_metadata: JSON.stringify(metadata), // ❌ Don't do this
+  });
+} catch (error) {
+  if (error.message.includes('transfer_metadata must be set using the metadata parameter')) {
+    console.error('Use the metadata parameter instead:');
+    console.error('client.transfer(request, metadata, signingOptions)');
+  }
+}
+```
+
+Source: `src/client/GrvtClient.ts:124-127`
+
+### Time Range Validation Errors
+
+History queries require both start_time and end_time:
+
+```typescript
+try {
+  const history = await client.getTransferHistory({
+    start_time: '1745600642000785050',
+    // Missing end_time
+  });
+} catch (error) {
+  if (error.message.includes('start_time') || error.message.includes('end_time')) {
+    console.error('Both start_time and end_time are required for history queries.');
+    console.error('Times must be in nanoseconds since epoch.');
+  }
+}
+```
+
+Source: `src/api/validator.ts` (referenced in `src/client/GrvtClient.ts:152`, `163`, `176`)
+
+## REST Client Error Handling
+
+### Comprehensive Error Handler
+
+Create a reusable error handler for REST operations:
+
+```typescript
+import { GrvtClient } from '@grvt/sdk';
+
+class GrvtErrorHandler {
+  static handle(error: Error, operation: string): void {
+    console.error(`[${operation}] Error:`, error.message);
+
+    // Authentication errors
+    if (error.message.includes('authentication') || error.message.includes('unauthorized')) {
+      console.error('→ Check your API credentials');
+      return;
+    }
+
+    // Missing API secret
+    if (error.message.includes('signing requires API secret')) {
+      console.error('→ API secret is required for signing operations');
+      return;
+    }
+
+    // Invalid environment
+    if (error.message.includes('Unknown environment')) {
+      console.error('→ Use valid environment: PRODUCTION, TESTNET, STAGING, or DEV');
+      return;
+    }
+
+    // Transfer metadata error
+    if (error.message.includes('transfer_metadata must be set')) {
+      console.error('→ Use metadata parameter: client.transfer(request, metadata)');
+      return;
+    }
+
+    // Time range errors
+    if (error.message.includes('start_time') || error.message.includes('end_time')) {
+      console.error('→ Both start_time and end_time are required (in nanoseconds)');
+      return;
+    }
+
+    // Chain errors
+    if (error.message.includes('Invalid Rhino chain') || error.message.includes('Invalid chain')) {
+      console.error('→ Unsupported chain for this operation');
+      return;
+    }
+
+    // Generic network error
+    if (error.message.includes('network') || error.message.includes('fetch')) {
+      console.error('→ Network error. Check your connection and try again.');
+      return;
+    }
+
+    // Unknown error
+    console.error('→ Unexpected error. Please check the error details.');
+  }
+}
+
+// Usage
+try {
+  const summary = await client.getFundingAccountSummary();
+} catch (error) {
+  GrvtErrorHandler.handle(error, 'getFundingAccountSummary');
+}
+```
+
+### Retry Logic for REST
+
+Implement exponential backoff for transient errors:
+
+```typescript
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries - 1;
+      const isRetryable = 
+        error.message.includes('network') ||
+        error.message.includes('timeout') ||
+        error.message.includes('ECONNRESET');
+
+      if (!isRetryable || isLastAttempt) {
+        throw error;
+      }
+
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`Attempt ${attempt + 1} failed. Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
+// Usage
+const summary = await withRetry(
+  () => client.getFundingAccountSummary(),
+  3,
+  1000
+);
+```
+
+## WebSocket Error Handling
+
+### Connection Errors
+
+Handle WebSocket connection errors:
+
+```typescript
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const wsClient = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.DEV,
+});
+
+try {
+  await wsClient.connect();
+  console.log('WebSocket connected');
+} catch (error) {
+  console.error('WebSocket connection failed:', error.message);
+  
+  if (error.message.includes('authentication')) {
+    console.error('→ Invalid API key');
+  } else if (error.message.includes('network')) {
+    console.error('→ Network error. Check your connection.');
+  } else {
+    console.error('→ Connection failed. Will retry automatically.');
+  }
+}
+```
+
+Source: `src/client/GrvtWsClient.ts:67-71`
+
+### Automatic Reconnection
+
+The WebSocket client includes built-in reconnection logic:
+
+<Steps>
+  <Step title="Exponential Backoff">
+    Reconnection attempts use exponential backoff with a maximum delay of 30 seconds:
+
+    ```typescript
+    // Automatically handled by GrvtWsClient
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+    ```
+
+    Source: `src/client/GrvtWsClient.ts:105`
+  </Step>
+
+  <Step title="Maximum Retries">
+    By default, the client attempts reconnection up to 5 times:
+
+    ```typescript
+    private readonly maxReconnectAttempts: number = 5;
+    ```
+
+    Source: `src/client/GrvtWsClient.ts:12`
+  </Step>
+
+  <Step title="Message Timeout Monitoring">
+    Automatically reconnects if no messages received within 5 seconds:
+
+    ```typescript
+    private readonly wsReadTimeout: number = 5000; // 5 seconds
+    ```
+
+    Source: `src/client/GrvtWsClient.ts:15`
+  </Step>
+</Steps>
+
+### Subscription Errors
+
+Handle subscription errors properly:
+
+```typescript
+try {
+  wsClient.subscribeTransferHistory(
+    'main-account-id',
+    (data) => {
+      console.log('Transfer:', data);
+    }
+  );
+} catch (error) {
+  if (error.message === 'WebSocket not connected') {
+    console.error('Must call connect() before subscribing');
+    await wsClient.connect();
+    // Retry subscription
+    wsClient.subscribeTransferHistory(
+      'main-account-id',
+      (data) => console.log('Transfer:', data)
+    );
+  }
+}
+```
+
+Source: `src/client/GrvtWsClient.ts:125-127`
+
+### Message Parsing Errors
+
+The SDK automatically logs message parsing errors:
+
+```typescript
+// Handled internally by GrvtWsClient
+this.ws.on('message', (data: string) => {
+  try {
+    const message = JSON.parse(data);
+    // Handle message...
+  } catch (error) {
+    console.error('Error parsing message:', error);
+  }
+});
+```
+
+Source: `src/client/GrvtWsClient.ts:54-65`
+
+<Warning>
+  **Important:** Subscriptions are NOT automatically restored after reconnection. You must manually resubscribe when the connection is reestablished.
+</Warning>
+
+### WebSocket Reconnection Handler
+
+Implement a custom reconnection handler:
+
+```typescript
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+class ResilientWebSocketClient {
+  private client: GrvtWsClient;
+  private subscriptions: Map<string, () => void> = new Map();
+
+  constructor(apiKey: string, env: EGrvtEnvironment) {
+    this.client = new GrvtWsClient({ apiKey, env });
+  }
+
+  async connect(): Promise<void> {
+    try {
+      await this.client.connect();
+      console.log('WebSocket connected');
+      
+      // Restore subscriptions after reconnection
+      this.restoreSubscriptions();
+    } catch (error) {
+      console.error('Connection failed:', error.message);
+      throw error;
+    }
+  }
+
+  subscribeTransferHistory(
+    mainAccountId: string,
+    handler: (data: any) => void,
+    subAccountId?: string
+  ): void {
+    const key = `transfer-${mainAccountId}-${subAccountId || 'all'}`;
+    
+    // Store subscription for restoration
+    this.subscriptions.set(key, () => {
+      this.client.subscribeTransferHistory(mainAccountId, handler, subAccountId);
+    });
+
+    // Execute subscription
+    this.client.subscribeTransferHistory(mainAccountId, handler, subAccountId);
+  }
+
+  private restoreSubscriptions(): void {
+    console.log(`Restoring ${this.subscriptions.size} subscriptions...`);
+    for (const [key, subscribe] of this.subscriptions) {
+      try {
+        subscribe();
+        console.log(`Restored subscription: ${key}`);
+      } catch (error) {
+        console.error(`Failed to restore subscription ${key}:`, error.message);
+      }
+    }
+  }
+
+  disconnect(): void {
+    this.client.disconnect();
+  }
+}
+
+// Usage
+const resilientClient = new ResilientWebSocketClient(
+  'your-api-key',
+  EGrvtEnvironment.DEV
+);
+
+await resilientClient.connect();
+
+resilientClient.subscribeTransferHistory(
+  'main-account-id',
+  (data) => console.log('Transfer:', data)
+);
+```
+
+## Error Handling Best Practices
+
+<Steps>
+  <Step title="Always Use Try-Catch">
+    Wrap all SDK operations in try-catch blocks:
+
+    ```typescript
+    try {
+      const result = await client.transfer({
+        // ... transfer details
+      });
+    } catch (error) {
+      console.error('Transfer failed:', error.message);
+      // Handle error appropriately
+    }
+    ```
+  </Step>
+
+  <Step title="Log Error Context">
+    Include operation context in error logs:
+
+    ```typescript
+    try {
+      const summary = await client.getSubAccountSummary({
+        sub_account_id: subAccountId,
+      });
+    } catch (error) {
+      console.error(
+        `Failed to fetch sub-account ${subAccountId}:`,
+        error.message
+      );
+    }
+    ```
+  </Step>
+
+  <Step title="Implement Retry Logic">
+    Use exponential backoff for retryable operations:
+
+    ```typescript
+    const result = await withRetry(
+      () => client.getFundingAccountSummary(),
+      3, // max retries
+      1000 // base delay
+    );
+    ```
+  </Step>
+
+  <Step title="Handle Specific Errors">
+    Check for specific error messages and handle accordingly:
+
+    ```typescript
+    catch (error) {
+      if (error.message.includes('signing requires API secret')) {
+        // Handle missing API secret
+      } else if (error.message.includes('authentication')) {
+        // Handle auth error
+      } else {
+        // Handle generic error
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Graceful Degradation">
+    Provide fallback behavior when operations fail:
+
+    ```typescript
+    let accountSummary;
+    try {
+      accountSummary = await client.getFundingAccountSummary();
+    } catch (error) {
+      console.warn('Using cached account data:', error.message);
+      accountSummary = getCachedAccountSummary();
+    }
+    ```
+  </Step>
+</Steps>
+
+## Complete Error Handling Example
+
+<CodeGroup>
+```typescript REST Client
+import { GrvtClient, ECurrency, ETransferType, EGrvtEnvironment } from '@grvt/sdk';
+
+class SafeGrvtClient {
+  private client: GrvtClient;
+
+  constructor(apiKey: string, apiSecret: string, env: EGrvtEnvironment) {
+    this.client = new GrvtClient({ apiKey, apiSecret, env });
+  }
+
+  async transfer(
+    fromAccountId: string,
+    toAccountId: string,
+    amount: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const result = await this.withRetry(() =>
+        this.client.transfer({
+          from_account_id: fromAccountId,
+          to_account_id: toAccountId,
+          currency: ECurrency.USDT,
+          num_tokens: amount,
+          transfer_type: ETransferType.STANDARD,
+        })
+      );
+      return { success: true, data: result };
+    } catch (error) {
+      const errorMessage = this.getErrorMessage(error);
+      console.error('Transfer failed:', errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  private async withRetry<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3
+  ): Promise<T> {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        if (attempt === maxRetries - 1) throw error;
+        const delay = 1000 * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    throw new Error('Max retries exceeded');
+  }
+
+  private getErrorMessage(error: any): string {
+    if (error.message.includes('signing requires API secret')) {
+      return 'API secret is required for this operation';
+    }
+    if (error.message.includes('authentication')) {
+      return 'Authentication failed';
+    }
+    return error.message || 'Unknown error';
+  }
+}
+```
+
+```typescript WebSocket Client
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+class RobustWebSocketClient {
+  private client: GrvtWsClient;
+  private subscriptions: Map<string, Function> = new Map();
+  private reconnectCount: number = 0;
+
+  constructor(apiKey: string, env: EGrvtEnvironment) {
+    this.client = new GrvtWsClient({ apiKey, env });
+  }
+
+  async connect(): Promise<void> {
+    try {
+      await this.client.connect();
+      this.reconnectCount = 0;
+      this.restoreSubscriptions();
+      console.log('WebSocket connected');
+    } catch (error) {
+      console.error('Connection failed:', error.message);
+      
+      if (this.reconnectCount < 5) {
+        this.reconnectCount++;
+        const delay = 1000 * Math.pow(2, this.reconnectCount);
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.connect();
+      }
+      
+      throw new Error('Max connection attempts exceeded');
+    }
+  }
+
+  subscribeTransferHistory(
+    mainAccountId: string,
+    handler: (data: any) => void,
+    subAccountId?: string
+  ): void {
+    const key = `${mainAccountId}-${subAccountId || 'all'}`;
+    this.subscriptions.set(key, () => {
+      try {
+        this.client.subscribeTransferHistory(
+          mainAccountId,
+          handler,
+          subAccountId
+        );
+      } catch (error) {
+        console.error('Subscription failed:', error.message);
+      }
+    });
+
+    // Execute subscription
+    this.subscriptions.get(key)!();
+  }
+
+  private restoreSubscriptions(): void {
+    for (const [key, subscribe] of this.subscriptions) {
+      subscribe();
+    }
+  }
+
+  disconnect(): void {
+    this.client.disconnect();
+  }
+}
+```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="REST Client" icon="plug" href="/guides/rest-client">
+    Learn about the REST API client
+  </Card>
+  <Card title="WebSocket Client" icon="wifi" href="/guides/websocket-client">
+    Real-time data with WebSocket
+  </Card>
+  <Card title="Transfers" icon="arrow-right-arrow-left" href="/guides/transfers">
+    Execute transfers with proper error handling
+  </Card>
+  <Card title="Account Management" icon="user" href="/guides/account-management">
+    Manage accounts safely
+  </Card>
+</CardGroup>

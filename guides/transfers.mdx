@@ -1,0 +1,319 @@
+---
+title: 'Transfers'
+description: 'Execute different types of transfers between accounts'
+---
+
+## Overview
+
+The GRVT SDK supports multiple types of transfers, from standard account-to-account transfers to bridge deposits and withdrawals. All transfers can be automatically signed by the SDK or manually signed using your own signing mechanism.
+
+## Transfer Types
+
+Transfers are categorized by the `ETransferType` enum from `@grvt/client`. Common types include:
+
+- **STANDARD** - Standard transfers between accounts
+- **NON_NATIVE_BRIDGE_DEPOSIT** - Bridge deposits from external chains
+- **NON_NATIVE_BRIDGE_WITHDRAW** - Bridge withdrawals to external chains
+
+For the complete list of transfer types, refer to the `@grvt/client/interfaces/codegen/enums/transfer-type` export.
+
+## Standard Transfers
+
+### Basic Transfer
+
+Transfer funds between accounts with automatic signing:
+
+```typescript
+import { GrvtClient, ECurrency, ETransferType, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+const transfer = await client.transfer({
+  from_account_id: 'from-account-id',
+  from_sub_account_id: 'from-sub-account-id',
+  to_account_id: 'to-account-id',
+  to_sub_account_id: 'to-sub-account-id',
+  currency: ECurrency.USDT,
+  num_tokens: '100',
+  transfer_type: ETransferType.STANDARD,
+});
+
+console.log('Transfer successful:', transfer);
+```
+
+<Note>
+  The `signature` field is optional. If not provided, the SDK will automatically compute it using your `apiSecret` and signing options.
+</Note>
+
+## Bridge Deposits and Withdrawals
+
+### Bridge Deposit
+
+For bridge deposits from external chains, you need to provide transfer metadata:
+
+```typescript
+import {
+  GrvtClient,
+  ECurrency,
+  ETransferType,
+  ITransferMetadata,
+  ETransferProvider,
+  ETransferDirection,
+  EChain,
+  ISigningOptions,
+  EGrvtEnvironment
+} from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Define transfer metadata
+const metadata: ITransferMetadata = {
+  provider: ETransferProvider.RHINO,
+  direction: ETransferDirection.DEPOSIT,
+  chainid: EChain.TRON,
+  endpoint: 'https://api.trongrid.io',
+  provider_tx_id: 'transaction-hash',
+  provider_ref_id: 'commit-id',
+};
+
+// Optional signing options
+const signingOptions: ISigningOptions = {
+  nonce: 12345,
+  expiration: '1746093221289693252'
+};
+
+const transfer = await client.transfer(
+  {
+    from_account_id: 'from-account-id',
+    to_account_id: 'to-account-id',
+    currency: ECurrency.USDT,
+    num_tokens: '100',
+    transfer_type: ETransferType.NON_NATIVE_BRIDGE_DEPOSIT,
+  },
+  metadata,
+  signingOptions
+);
+```
+
+<Warning>
+  - Nonce must be non-negative
+  - Expiration must be within 30 days
+  - Do not set `transfer_metadata` directly in the request; always use the `metadata` parameter
+</Warning>
+
+### Bridge Withdrawal
+
+For bridge withdrawals, use the same pattern with `ETransferDirection.WITHDRAWAL`:
+
+```typescript
+const metadata: ITransferMetadata = {
+  provider: ETransferProvider.RHINO,
+  direction: ETransferDirection.WITHDRAWAL, // Changed to WITHDRAWAL
+  chainid: EChain.TRON,
+  endpoint: 'https://api.trongrid.io',
+  provider_tx_id: 'transaction-hash',
+  provider_ref_id: 'commit-id',
+};
+
+const transfer = await client.transfer(
+  {
+    from_account_id: 'from-account-id',
+    to_account_id: 'to-account-id',
+    currency: ECurrency.USDT,
+    num_tokens: '100',
+    transfer_type: ETransferType.NON_NATIVE_BRIDGE_WITHDRAW, // Changed to WITHDRAW
+  },
+  metadata
+);
+```
+
+## Transfer Metadata
+
+The `ITransferMetadata` interface provides additional context for bridge transfers:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `provider` | `ETransferProvider` | Yes | Bridge provider (e.g., RHINO) |
+| `direction` | `ETransferDirection` | Yes | DEPOSIT or WITHDRAWAL |
+| `chainid` | `EChain` | Yes | Source/destination chain |
+| `endpoint` | `string` | Yes | RPC endpoint URL |
+| `provider_tx_id` | `string` | No | Transaction hash from provider |
+| `provider_ref_id` | `string` | No | Reference ID from provider |
+
+Source: `src/types/transfer.ts:12-20`
+
+<Note>
+  The metadata interface allows additional custom properties using the `[key: string]: any` index signature.
+</Note>
+
+## Signing Options
+
+### Automatic Signing
+
+When `apiSecret` is provided, the SDK automatically signs transfers:
+
+```typescript
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret', // Required for auto-signing
+  env: EGrvtEnvironment.DEV,
+});
+
+// SDK handles signing automatically
+const transfer = await client.transfer({
+  from_account_id: 'from-account-id',
+  to_account_id: 'to-account-id',
+  currency: ECurrency.USDT,
+  num_tokens: '100',
+  transfer_type: ETransferType.STANDARD,
+});
+```
+
+Source: `src/client/GrvtClient.ts:132-140`
+
+### Custom Signing Options
+
+Control nonce and expiration with signing options:
+
+```typescript
+const signingOptions: ISigningOptions = {
+  nonce: 12345, // Must be non-negative
+  expiration: '1746093221289693252' // Must be within 30 days
+};
+
+const transfer = await client.transfer(
+  {
+    from_account_id: 'from-account-id',
+    to_account_id: 'to-account-id',
+    currency: ECurrency.USDT,
+    num_tokens: '100',
+    transfer_type: ETransferType.STANDARD,
+  },
+  undefined, // No metadata for standard transfers
+  signingOptions
+);
+```
+
+### Manual Signature
+
+Provide your own signature:
+
+```typescript
+const transfer = await client.transfer({
+  from_account_id: 'from-account-id',
+  to_account_id: 'to-account-id',
+  currency: ECurrency.USDT,
+  num_tokens: '100',
+  transfer_type: ETransferType.STANDARD,
+  signature: {
+    signer: 'your-address',
+    r: '0x...',
+    s: '0x...',
+    v: 27,
+    expiration: '1746093221289693252',
+    nonce: 12345
+  }
+});
+```
+
+Source: `src/client/GrvtClient.ts:138-140`
+
+## Transfer History
+
+Query historical transfers with required time ranges:
+
+```typescript
+const transferHistory = await client.getTransferHistory({
+  start_time: '1745600642000785050', // Required: nanoseconds timestamp
+  end_time: '17588917787741000000' // Required: nanoseconds timestamp
+});
+
+console.log('Transfer history:', transferHistory);
+```
+
+<Warning>
+  Both `start_time` and `end_time` are required for history queries. Times must be in nanoseconds.
+</Warning>
+
+Source: `src/client/GrvtClient.ts:149-156`
+
+## Supported Chains
+
+The SDK supports transfers across multiple chains:
+
+<Tabs>
+  <Tab title="Mainnet Chains">
+    - Arbitrum One (42161)
+    - BNB Smart Chain (56)
+    - Base (8453)
+    - Ethereum (1)
+    - Polygon (137)
+    - Polygon zkEVM (1101)
+    - zkSync Era (324)
+    - Solana
+    - Tron
+    - Kaia (8217)
+  </Tab>
+  <Tab title="Testnet Chains">
+    - Arbitrum Sepolia (421614)
+    - BNB Testnet (97)
+    - Base Sepolia (84532)
+    - Ethereum Sepolia (11155111)
+    - Polygon Amoy (80002)
+    - Polygon zkEVM Cardona (2442)
+    - zkSync Sepolia (300)
+    - Solana Testnet
+    - Tron Testnet
+    - Kaia Testnet (1001)
+  </Tab>
+</Tabs>
+
+Source: `src/types/chain.ts:1-26`
+
+## Error Handling
+
+Common transfer errors:
+
+```typescript
+try {
+  const transfer = await client.transfer({
+    from_account_id: 'from-account-id',
+    to_account_id: 'to-account-id',
+    currency: ECurrency.USDT,
+    num_tokens: '100',
+    transfer_type: ETransferType.STANDARD,
+  });
+} catch (error) {
+  if (error.message.includes('signing requires API secret')) {
+    console.error('API secret is required for auto-signing');
+  } else if (error.message.includes('transfer_metadata must be set using the metadata parameter')) {
+    console.error('Use metadata parameter instead of setting transfer_metadata directly');
+  } else {
+    console.error('Transfer failed:', error.message);
+  }
+}
+```
+
+Source: `src/client/GrvtClient.ts:123-127`, `src/client/GrvtClient.ts:134`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deposits & Withdrawals" icon="money-bill-transfer" href="/guides/deposits-withdrawals">
+    Learn about L1 deposits and withdrawals
+  </Card>
+  <Card title="Account Management" icon="user" href="/guides/account-management">
+    Manage your accounts and sub-accounts
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle transfer errors properly
+  </Card>
+</CardGroup>

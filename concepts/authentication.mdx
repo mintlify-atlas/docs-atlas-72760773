@@ -1,0 +1,248 @@
+---
+title: "Authentication"
+description: "Learn how to authenticate with the GRVT API using API keys and cookies"
+---
+
+## Overview
+
+The GRVT TypeScript SDK uses a two-step authentication process:
+
+1. **API Key Authentication** - Uses your API key and secret to obtain a session cookie
+2. **Cookie-based Sessions** - Uses the session cookie for subsequent authenticated requests
+
+This approach ensures secure communication while maintaining efficient session management.
+
+## Configuring Credentials
+
+To authenticate with the GRVT API, you need to provide your credentials when initializing the client:
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/client';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  tradingAccountId: 'your-trading-account-id',
+  env: EGrvtEnvironment.TESTNET
+});
+```
+
+### Configuration Interface
+
+The SDK accepts the following configuration options:
+
+```typescript
+export interface IGrvtConfig {
+  apiKey?: string;
+  apiSecret?: string;
+  tradingAccountId?: string;
+  env: EGrvtEnvironment;
+}
+```
+
+<Info>
+The `apiKey` and `apiSecret` are optional. If not provided, you can only access public endpoints that don't require authentication.
+</Info>
+
+## How Authentication Works
+
+### Cookie-based Session Management
+
+The SDK automatically manages authentication sessions using cookies. Here's how it works:
+
+1. When you make an authenticated request, the SDK checks if it has a valid session cookie
+2. If the cookie is expired or doesn't exist, it automatically refreshes using your API key
+3. The new cookie is used for subsequent requests until it expires
+
+```typescript src/client/GrvtBaseClient.ts
+protected shouldRefreshCookie(): boolean {
+  if (!this.config.apiKey) {
+    return false;
+  }
+
+  const timeTillExpiration = this.cookie ? this.cookie.expires - Date.now() / 1000 : null;
+  const isCookieFresh = timeTillExpiration !== null && timeTillExpiration > 5;
+
+  if (!isCookieFresh) {
+    console.info(
+      `Cookie should be refreshed, time till expiration: ${timeTillExpiration} seconds`
+    );
+  }
+
+  return !isCookieFresh;
+}
+```
+
+### Automatic Cookie Refresh
+
+The SDK automatically refreshes cookies when they are about to expire (within 5 seconds). This happens transparently in the background:
+
+```typescript src/client/GrvtBaseClient.ts
+protected async refreshCookie(): Promise<GrvtCookie | null> {
+  if (!this.shouldRefreshCookie()) {
+    return this.cookie;
+  }
+
+  const path = this.edgeBaseUrl + '/auth/api_key/login';
+  this.cookie = await getCookieWithExpiration(path, this.config.apiKey || null);
+
+  if (this.cookie) {
+    console.info('Cookie refreshed');
+  }
+
+  return this.cookie;
+}
+```
+
+### Authenticated Request Headers
+
+When making authenticated requests, the SDK includes the following headers:
+
+```typescript src/client/GrvtBaseClient.ts
+private getAuthenticatedHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (this.cookie) {
+    headers['Cookie'] = `gravity=${this.cookie.gravity}`;
+    if (this.cookie.XGrvtAccountId) {
+      headers['X-Grvt-Account-Id'] = this.cookie.XGrvtAccountId;
+    }
+  }
+
+  return headers;
+}
+```
+
+## Authentication Flow
+
+<Steps>
+  <Step title="Initialize Client">
+    Create a new client instance with your API credentials:
+    
+    ```typescript
+    const client = new GrvtClient({
+      apiKey: 'your-api-key',
+      apiSecret: 'your-api-secret',
+      env: EGrvtEnvironment.TESTNET
+    });
+    ```
+  </Step>
+  
+  <Step title="Make Authenticated Request">
+    Call any authenticated endpoint:
+    
+    ```typescript
+    const summary = await client.fundingAccountSummary();
+    ```
+  </Step>
+  
+  <Step title="Automatic Cookie Management">
+    The SDK automatically:
+    - Checks if a valid cookie exists
+    - Refreshes the cookie if needed
+    - Includes the cookie in the request headers
+  </Step>
+  
+  <Step title="Receive Response">
+    Your request is authenticated and processed by the GRVT API.
+  </Step>
+</Steps>
+
+## Security Best Practices
+
+<Warning>
+Never commit your API keys to version control or share them publicly. Use environment variables to store sensitive credentials.
+</Warning>
+
+### Using Environment Variables
+
+Store your credentials securely using environment variables:
+
+```typescript
+const client = new GrvtClient({
+  apiKey: process.env.GRVT_API_KEY,
+  apiSecret: process.env.GRVT_API_SECRET,
+  tradingAccountId: process.env.GRVT_TRADING_ACCOUNT_ID,
+  env: EGrvtEnvironment.TESTNET
+});
+```
+
+### Best Practices
+
+- **Rotate keys regularly** - Generate new API keys periodically
+- **Use environment-specific keys** - Different keys for development, staging, and production
+- **Monitor usage** - Track API key usage to detect unauthorized access
+- **Limit permissions** - Use the minimum required permissions for each API key
+- **Secure storage** - Use secure credential management systems in production
+
+## Public vs Authenticated Endpoints
+
+The SDK supports both public and authenticated endpoints:
+
+### Public Endpoints
+
+These endpoints don't require authentication:
+
+```typescript
+// No authentication needed
+const time = await client.currentTime();
+const mapping = await client.chainMapping();
+```
+
+### Authenticated Endpoints
+
+These endpoints require valid API credentials:
+
+```typescript
+// Requires authentication
+const summary = await client.fundingAccountSummary();
+const history = await client.transferHistory();
+const transfer = await client.transfer({
+  from_account_id: '0x...',
+  to_account_id: '0x...',
+  currency: 'USDC',
+  num_tokens: '100'
+});
+```
+
+## Troubleshooting
+
+### Cookie Refresh Issues
+
+If you see frequent cookie refresh messages, check:
+
+- Your API key is valid and not expired
+- Network connectivity is stable
+- The environment configuration matches your API key
+
+### Authentication Errors
+
+Common authentication errors:
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized">
+    Your API key is invalid or expired. Generate a new API key from the GRVT dashboard.
+  </Accordion>
+  
+  <Accordion title="403 Forbidden">
+    Your API key doesn't have permission to access this endpoint. Check your key permissions.
+  </Accordion>
+  
+  <Accordion title="Cookie expired">
+    The session cookie expired. The SDK should automatically refresh it. If this persists, check your API key.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environments" icon="server" href="/concepts/environments">
+    Learn about different GRVT environments
+  </Card>
+  
+  <Card title="Signing" icon="signature" href="/concepts/signing">
+    Understand transaction signing for transfers and withdrawals
+  </Card>
+</CardGroup>

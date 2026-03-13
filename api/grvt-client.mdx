@@ -1,0 +1,150 @@
+---
+title: 'GrvtClient'
+description: 'Main REST API client for interacting with GRVT services'
+---
+
+## Overview
+
+The `GrvtClient` class is the primary client for interacting with GRVT's REST API endpoints. It provides methods for account management, transfers, deposits, withdrawals, and querying transaction history.
+
+## Constructor
+
+```typescript
+new GrvtClient(config: IGrvtConfig)
+```
+
+### Parameters
+
+<ParamField path="config" type="IGrvtConfig" required>
+  Configuration object for the client
+  
+  <Expandable title="IGrvtConfig properties">
+    <ParamField path="apiKey" type="string">
+      Your GRVT API key for authentication
+    </ParamField>
+    
+    <ParamField path="apiSecret" type="string">
+      Your GRVT API secret for signing operations (required for withdraw, transfer, and deposit operations)
+    </ParamField>
+    
+    <ParamField path="tradingAccountId" type="string">
+      Your trading account ID
+    </ParamField>
+    
+    <ParamField path="env" type="EGrvtEnvironment" required>
+      The environment to connect to: `PRODUCTION`, `TESTNET`, `STAGING`, or `DEV`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/client';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  tradingAccountId: 'your-account-id',
+  env: EGrvtEnvironment.TESTNET
+});
+```
+
+## Methods
+
+The `GrvtClient` provides the following methods:
+
+### Account Operations
+
+<CardGroup cols={2}>
+  <Card title="getFundingAccountSummary" icon="wallet" href="/api/funding-account-summary">
+    Get funding account summary and balances
+  </Card>
+  
+  <Card title="getSubAccountSummary" icon="users" href="/api/sub-account-summary">
+    Get sub-account summary and details
+  </Card>
+</CardGroup>
+
+### Transfer & Transaction Operations
+
+<CardGroup cols={2}>
+  <Card title="transfer" icon="arrow-right-arrow-left" href="/api/transfer">
+    Transfer funds between accounts
+  </Card>
+  
+  <Card title="deposit" icon="arrow-down-to-line" href="/api/deposit">
+    Deposit funds to your account
+  </Card>
+  
+  <Card title="withdraw" icon="arrow-up-from-line" href="/api/withdraw">
+    Withdraw funds from your account
+  </Card>
+  
+  <Card title="requestDepositApproval" icon="check" href="/api/deposit-approval">
+    Request approval for a deposit
+  </Card>
+</CardGroup>
+
+### History & Queries
+
+<CardGroup cols={3}>
+  <Card title="getTransferHistory" icon="clock-rotate-left" href="/api/transfer-history">
+    Query transfer history
+  </Card>
+  
+  <Card title="getDepositHistory" icon="clock-rotate-left" href="/api/deposit-history">
+    Query deposit history
+  </Card>
+  
+  <Card title="getWithdrawalHistory" icon="clock-rotate-left" href="/api/withdrawal-history">
+    Query withdrawal history
+  </Card>
+</CardGroup>
+
+### Utility Methods
+
+<CardGroup cols={3}>
+  <Card title="getCurrentTime" icon="clock" href="/api/current-time">
+    Get current server time
+  </Card>
+  
+  <Card title="getGravityChainIDFromRhinoChain" icon="link" href="/api/chain-mapping">
+    Map Rhino chain to Gravity chain ID
+  </Card>
+  
+  <Card title="kyaCheckRhinoSDADeposit" icon="shield-check" href="/api/kya-check">
+    Perform KYA check for Rhino SDA deposits
+  </Card>
+</CardGroup>
+
+## Authentication
+
+The client automatically handles authentication using your API key. For operations that require signing (transfers, withdrawals, deposits), you must provide an `apiSecret` in the configuration.
+
+<Info>
+  All methods return Promises and should be used with `async/await` or `.then()/.catch()`.
+</Info>
+
+## Error Handling
+
+```typescript
+try {
+  const summary = await client.getFundingAccountSummary();
+  console.log(summary);
+} catch (error) {
+  console.error('API error:', error);
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="GrvtWsClient" icon="plug" href="/api/grvt-ws-client">
+    WebSocket client for real-time data feeds
+  </Card>
+  
+  <Card title="Authentication Guide" icon="key" href="/concepts/authentication">
+    Learn about authentication and API keys
+  </Card>
+</CardGroup>

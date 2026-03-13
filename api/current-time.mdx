@@ -1,0 +1,48 @@
+---
+title: "Get Current Time"
+description: "Retrieve the current server time from GRVT API"
+---
+
+## Overview
+
+The `getCurrentTime()` method retrieves the current server time from the GRVT API. This is useful for synchronizing timestamps, validating time-sensitive operations, and ensuring accurate time references across your application.
+
+## Method Signature
+
+```typescript
+getCurrentTime(): Promise<number>
+```
+
+## Parameters
+
+This method does not require any parameters.
+
+## Return Value
+
+<ResponseField name="currentTime" type="number" required>
+  Current server time in milliseconds since Unix epoch (January 1, 1970 00:00:00 UTC)
+</ResponseField>
+
+## Example
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Get current server time, in milliseconds since epoch
+const currentTime = await client.getCurrentTime();
+// Example result: 1747397398409
+```
+
+## Use Cases
+
+- Synchronize client and server timestamps
+- Calculate time offsets for signing operations
+- Validate time-sensitive requests
+- Generate accurate timestamps for API calls

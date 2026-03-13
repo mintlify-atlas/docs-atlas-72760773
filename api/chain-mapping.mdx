@@ -1,0 +1,77 @@
+---
+title: "Get Gravity Chain ID from Rhino Chain"
+description: "Convert Rhino chain identifiers to Gravity chain IDs"
+---
+
+## Overview
+
+The `getGravityChainIDFromRhinoChain()` method converts Rhino chain identifiers to their corresponding Gravity chain IDs. This mapping is environment-aware and returns the appropriate chain ID based on your configured GRVT environment.
+
+## Method Signature
+
+```typescript
+getGravityChainIDFromRhinoChain(rhinoChain: string): Promise<EChain | null>
+```
+
+## Parameters
+
+<ParamField path="rhinoChain" type="string" required>
+  The Rhino chain identifier (e.g., "BNB_SMART_CHAIN", "ETHEREUM", "TRON")
+</ParamField>
+
+## Return Value
+
+<ResponseField name="chainId" type="EChain | null" required>
+  The corresponding Gravity chain ID for the specified Rhino chain, or `null` if the chain ID is not found or not supported
+</ResponseField>
+
+## Environment Mapping
+
+The method maps Rhino chains to Gravity chain IDs based on your configured environment:
+
+| GRVT Environment | Rhino Environment |
+|-----------------|-------------------|
+| `DEV` | Rhino DEV |
+| `STAGING` | Rhino DEV |
+| `TESTNET` | Rhino STG |
+| `PRODUCTION` | Rhino PROD |
+
+<Note>
+  The same Rhino chain name will map to different chain IDs depending on the environment. For example, "BNB_SMART_CHAIN" maps to chain ID 97 in DEV/STAGING/TESTNET environments, but to chain ID 56 in PRODUCTION.
+</Note>
+
+## Example
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Convert Rhino chain to Gravity EChain
+// Result will depend on the environment, specifically
+// - DEV, STAGING - Rhino DEV
+// - TESTNET - Rhino STG
+// - PRODUCTION - Rhino PROD
+// This will return null if the chain ID is not found or not supported
+
+const chainID = await client.getGravityChainIDFromRhinoChain('BNB_SMART_CHAIN');
+// Result:
+// - On DEV/STAGING/TESTNET: 97
+// - On PRODUCTION: 56
+```
+
+## Error Handling
+
+The method returns `null` if:
+- The Rhino chain identifier is not recognized
+- The chain is not supported in the current environment
+- The mapping service is unavailable
+
+<Warning>
+  Always check for `null` return values before using the chain ID in subsequent operations.
+</Warning>

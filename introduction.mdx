@@ -1,0 +1,156 @@
+---
+title: Introduction
+description: Overview of the GRVT TypeScript SDK for building trading applications
+---
+
+# Introduction to GRVT TypeScript SDK
+
+The GRVT TypeScript SDK provides a comprehensive interface to interact with the GRVT trading platform. Built with TypeScript, it offers full type safety and IntelliSense support for seamless integration into your trading applications.
+
+## What is GRVT?
+
+GRVT is a high-performance trading platform that provides APIs for managing accounts, executing transfers, handling deposits and withdrawals, and streaming real-time data. The TypeScript SDK simplifies interaction with these APIs by providing strongly-typed clients and automatic request signing.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="REST API Client" icon="code">
+    Full-featured REST client for account management, transfers, deposits, withdrawals, and history queries
+  </Card>
+  
+  <Card title="WebSocket Client" icon="tower-broadcast">
+    Real-time data streaming with automatic reconnection and subscription management
+  </Card>
+  
+  <Card title="Automatic Signing" icon="signature">
+    Built-in request signing using EIP-712 typed data signatures with automatic nonce and expiration handling
+  </Card>
+  
+  <Card title="Type Safety" icon="shield-check">
+    Full TypeScript support with interfaces and enums for all API requests and responses
+  </Card>
+</CardGroup>
+
+## Core Capabilities
+
+### Account Management
+
+- Get funding account summaries
+- Query sub-account details
+- Track account balances and positions
+
+### Transfers & Payments
+
+- Execute transfers between accounts
+- Support for multiple transfer types (standard, bridge deposits/withdrawals)
+- Transfer history queries with time-based filtering
+
+### Deposits & Withdrawals
+
+- Request deposit approvals
+- Execute withdrawals to Ethereum addresses
+- Query deposit and withdrawal history
+- KYA (Know Your Asset) checks for Rhino SDA deposits
+
+### Real-Time Data
+
+- Subscribe to transfer feeds via WebSocket
+- Automatic connection management and reconnection
+- Message-based event handling
+
+## Architecture Overview
+
+The SDK is organized into three main components:
+
+### 1. REST Client (`GrvtClient`)
+
+The `GrvtClient` class provides synchronous API access for:
+
+- **Account Operations**: Retrieve funding and sub-account summaries
+- **Transfer Operations**: Execute and query transfers
+- **Deposit/Withdrawal Operations**: Manage fund movements with automatic signing
+- **Utility Operations**: Get server time, chain mappings, and KYA status
+
+All REST endpoints require authentication via API key and support optional API secret for automatic request signing.
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+```
+
+### 2. WebSocket Client (`GrvtWsClient`)
+
+The `GrvtWsClient` class provides real-time data streaming with:
+
+- **Automatic Reconnection**: Exponential backoff with configurable retry limits
+- **Connection Monitoring**: 5-second timeout with automatic reconnect
+- **Subscription Management**: Unique IDs for each subscription
+- **Event Handlers**: Callback-based message processing
+
+```typescript
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const wsClient = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.DEV,
+});
+
+await wsClient.connect();
+```
+
+### 3. Signing Utilities
+
+The SDK includes built-in signing utilities that:
+
+- Generate EIP-712 compliant signatures for transfers and withdrawals
+- Automatically manage nonces and expiration timestamps
+- Validate signature formats before sending requests
+- Support custom signing options for advanced use cases
+
+<Note>
+  The signature field is optional in transfer and withdrawal requests. If not provided, the SDK will automatically compute it using your API secret.
+</Note>
+
+## Use Cases
+
+The GRVT TypeScript SDK is ideal for:
+
+- **Trading Applications**: Build automated trading systems with account management and real-time data
+- **Portfolio Management**: Track balances, positions, and transaction history across multiple accounts
+- **Payment Processing**: Execute and monitor deposits, withdrawals, and transfers
+- **Integration Services**: Connect GRVT trading capabilities to existing systems
+- **Analytics Platforms**: Stream real-time transfer data for monitoring and analysis
+
+## Environment Support
+
+The SDK supports multiple environments for different deployment stages:
+
+| Environment | Description | Chain ID |
+|-------------|-------------|----------|
+| `PRODUCTION` | Production environment | 325 |
+| `TESTNET` | Public testnet | 326 |
+| `STAGING` | Staging environment | 327 |
+| `DEV` | Development environment | 327 |
+
+## Requirements
+
+- Node.js >= 20
+- TypeScript 5.x (recommended)
+- API credentials from GRVT platform
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install the SDK using npm, yarn, or pnpm
+  </Card>
+  
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started with your first API calls in 5 minutes
+  </Card>
+</CardGroup>

@@ -1,0 +1,152 @@
+---
+title: "Get Withdrawal History"
+description: "Query historical withdrawal records within a specified time range"
+---
+
+## Overview
+
+The `getWithdrawalHistory()` method retrieves historical withdrawal records for your account within a specified time range. This includes all withdrawal transactions from your GRVT account to external blockchain addresses.
+
+## Method Signature
+
+```typescript
+getWithdrawalHistory(
+  request: IApiWithdrawalHistoryRequest
+): Promise<IApiWithdrawalHistoryResponse>
+```
+
+## Parameters
+
+<ParamField path="request" type="IApiWithdrawalHistoryRequest" required>
+  The withdrawal history query request object with the following properties:
+</ParamField>
+
+<ParamField path="request.start_time" type="string" required>
+  Start timestamp in nanoseconds (Unix epoch). Only withdrawals with event_time greater than or equal to start_time will be returned.
+</ParamField>
+
+<ParamField path="request.end_time" type="string" required>
+  End timestamp in nanoseconds (Unix epoch). Only withdrawals with event_time less than or equal to end_time will be returned.
+</ParamField>
+
+<ParamField path="request.sub_account_id" type="string">
+  Optional sub-account ID to filter withdrawals. If not provided, returns withdrawals for all sub-accounts.
+</ParamField>
+
+<ParamField path="request.currency" type="ECurrency">
+  Optional currency filter. Filter withdrawals by specific currency (e.g., USDT, USDC, BTC, ETH).
+</ParamField>
+
+<ParamField path="request.limit" type="number">
+  Maximum number of records to return. Use for pagination.
+</ParamField>
+
+<ParamField path="request.cursor" type="string">
+  Pagination cursor for fetching subsequent pages of results.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="result" type="IApiWithdrawalHistoryResponse" required>
+  The withdrawal history response object containing:
+</ResponseField>
+
+<ResponseField name="result.withdrawals" type="array">
+  Array of withdrawal records matching the query criteria. Each withdrawal includes:
+  - Withdrawal ID
+  - Account ID
+  - Destination Ethereum address
+  - Currency
+  - Amount (num_tokens)
+  - Withdrawal status
+  - Event timestamp
+  - Transaction hash (once processed)
+  - Signature
+</ResponseField>
+
+<ResponseField name="result.next_cursor" type="string">
+  Cursor for fetching the next page of results. If null, no more results are available.
+</ResponseField>
+
+## Timestamp Format
+
+<Info>
+  All timestamps in withdrawal history queries are in **nanoseconds** since Unix epoch (January 1, 1970 00:00:00 UTC). This provides high precision for time-based queries.
+  
+  To convert from milliseconds to nanoseconds, multiply by 1,000,000:
+  ```typescript
+  const milliseconds = Date.now();
+  const nanoseconds = (milliseconds * 1000000).toString();
+  ```
+</Info>
+
+## Pagination
+
+For large result sets, use the pagination support:
+
+1. Specify a `limit` in your initial request
+2. Check the `next_cursor` field in the response
+3. If `next_cursor` is not null, make another request with the cursor to fetch the next page
+
+## Example
+
+```typescript
+import { GrvtClient, EGrvtEnvironment, ECurrency } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Query withdrawal history
+// Note: both start_time and end_time are required for history queries
+const withdrawalHistory = await client.getWithdrawalHistory({
+  start_time: '1745600642000785050', // timestamp in nanoseconds
+  end_time: '17588917787741000000' // timestamp in nanoseconds
+});
+// You can filter more & do pagination with this query if needed, please take a look at the request interface to get more details
+
+// Example with pagination and filters
+const filteredHistory = await client.getWithdrawalHistory({
+  start_time: '1745600642000785050',
+  end_time: '17588917787741000000',
+  sub_account_id: 'sub-account-123',
+  limit: 50,
+  currency: ECurrency.USDT
+});
+
+// Fetch next page if available
+if (filteredHistory.next_cursor) {
+  const nextPage = await client.getWithdrawalHistory({
+    start_time: '1745600642000785050',
+    end_time: '17588917787741000000',
+    cursor: filteredHistory.next_cursor
+  });
+}
+```
+
+## Validation
+
+<Warning>
+  Both `start_time` and `end_time` are **required** parameters. The method will throw an error if either is missing:
+  - "startTime is required"
+  - "endTime is required"
+</Warning>
+
+## Use Cases
+
+- Track withdrawal transactions and their status
+- Monitor fund movements out of your account
+- Generate withdrawal reports for accounting purposes
+- Audit trail for compliance requirements
+- Reconcile on-chain withdrawal transactions
+- Troubleshoot pending or failed withdrawals
+- Financial reporting and tax documentation
+
+## Related Methods
+
+- [Withdraw](/api/withdraw) - Initiate a new withdrawal
+- [Get Transfer History](/api/transfer-history) - Query transfer history
+- [Get Deposit History](/api/deposit-history) - Query deposit history

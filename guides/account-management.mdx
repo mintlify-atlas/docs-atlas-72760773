@@ -1,0 +1,373 @@
+---
+title: 'Account Management'
+description: 'Manage funding accounts and sub-accounts on GRVT'
+---
+
+## Overview
+
+The GRVT SDK provides methods to retrieve and manage your funding accounts and sub-accounts. This includes viewing account summaries, balances, and account structures.
+
+## Account Structure
+
+GRVT uses a hierarchical account structure:
+
+- **Funding Account** - Top-level account that holds your funds
+- **Sub-Accounts** - Child accounts under a funding account for organizing trades and positions
+
+## Funding Account Summary
+
+Retrieve comprehensive information about your funding account:
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+const accountSummary = await client.getFundingAccountSummary();
+console.log('Funding Account Summary:', accountSummary);
+```
+
+Source: `src/client/GrvtClient.ts:65-72`
+
+### What's Included
+
+The funding account summary typically includes:
+- Account ID
+- Total balance across all currencies
+- Available balance for trading
+- Reserved balance (locked in orders/positions)
+- Account status and permissions
+
+<Note>
+  This method requires authentication. Ensure you've initialized the client with a valid `apiKey`.
+</Note>
+
+## Sub-Account Summary
+
+Retrieve detailed information about a specific sub-account:
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+const subAccountSummary = await client.getSubAccountSummary({
+  sub_account_id: 'your-sub-account-id',
+});
+
+console.log('Sub-Account Summary:', subAccountSummary);
+```
+
+Source: `src/client/GrvtClient.ts:74-83`
+
+### Sub-Account Details
+
+The sub-account summary provides:
+- Sub-account ID
+- Parent funding account ID
+- Balance breakdown by currency
+- Open positions and orders
+- Risk metrics
+- PnL (Profit and Loss) information
+
+## Complete Example
+
+<CodeGroup>
+```typescript View All Accounts
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+async function viewAccounts() {
+  try {
+    // Get funding account summary
+    const fundingAccount = await client.getFundingAccountSummary();
+    console.log('Funding Account:', {
+      id: fundingAccount.account_id,
+      balance: fundingAccount.total_balance,
+      available: fundingAccount.available_balance,
+    });
+
+    // Get sub-account summary
+    if (fundingAccount.sub_accounts?.length > 0) {
+      for (const subAccId of fundingAccount.sub_accounts) {
+        const subAccount = await client.getSubAccountSummary({
+          sub_account_id: subAccId,
+        });
+        console.log('Sub-Account:', {
+          id: subAccount.sub_account_id,
+          balance: subAccount.balance,
+          positions: subAccount.positions,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch accounts:', error);
+  }
+}
+
+viewAccounts();
+```
+
+```typescript With Error Handling
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+async function safeGetAccount(subAccountId?: string) {
+  try {
+    if (subAccountId) {
+      const subAccount = await client.getSubAccountSummary({
+        sub_account_id: subAccountId,
+      });
+      return { success: true, data: subAccount };
+    } else {
+      const fundingAccount = await client.getFundingAccountSummary();
+      return { success: true, data: fundingAccount };
+    }
+  } catch (error) {
+    console.error('Account fetch failed:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+// Usage
+const result = await safeGetAccount('sub-account-123');
+if (result.success) {
+  console.log('Account data:', result.data);
+} else {
+  console.error('Error:', result.error);
+}
+```
+</CodeGroup>
+
+## Authentication
+
+Account management methods require authentication:
+
+<Steps>
+  <Step title="Cookie-Based Authentication">
+    The SDK automatically handles cookie-based authentication. Cookies are refreshed when they expire (within 5 seconds of expiration).
+
+    Source: `src/client/GrvtBaseClient.ts:39-52`
+  </Step>
+
+  <Step title="API Key Required">
+    Both `getFundingAccountSummary` and `getSubAccountSummary` require a valid API key in the client configuration.
+
+    ```typescript
+    const client = new GrvtClient({
+      apiKey: 'your-api-key', // Required
+      env: EGrvtEnvironment.DEV,
+    });
+    ```
+  </Step>
+
+  <Step title="Account Headers">
+    The SDK automatically includes the account ID in request headers (`X-Grvt-Account-Id`) when available.
+
+    Source: `src/client/GrvtClient.ts:284-286`
+  </Step>
+</Steps>
+
+## Response Interfaces
+
+The SDK uses typed interfaces from `@grvt/client/interfaces`:
+
+### Funding Account Response
+
+```typescript
+import { IApiFundingAccountSummaryResponse } from '@grvt/client/interfaces';
+
+const summary: IApiFundingAccountSummaryResponse = await client.getFundingAccountSummary();
+```
+
+Source: `src/client/GrvtClient.ts:14`
+
+### Sub-Account Response
+
+```typescript
+import { IApiSubAccountSummaryResponse } from '@grvt/client/interfaces';
+
+const summary: IApiSubAccountSummaryResponse = await client.getSubAccountSummary({
+  sub_account_id: 'sub-account-id',
+});
+```
+
+Source: `src/client/GrvtClient.ts:13`
+
+## Working with Multiple Environments
+
+Switch between environments easily:
+
+<Tabs>
+  <Tab title="Production">
+    ```typescript
+    const client = new GrvtClient({
+      apiKey: process.env.PROD_API_KEY,
+      apiSecret: process.env.PROD_API_SECRET,
+      env: EGrvtEnvironment.PRODUCTION,
+    });
+
+    const summary = await client.getFundingAccountSummary();
+    ```
+  </Tab>
+  <Tab title="Testnet">
+    ```typescript
+    const client = new GrvtClient({
+      apiKey: process.env.TESTNET_API_KEY,
+      apiSecret: process.env.TESTNET_API_SECRET,
+      env: EGrvtEnvironment.TESTNET,
+    });
+
+    const summary = await client.getFundingAccountSummary();
+    ```
+  </Tab>
+  <Tab title="Development">
+    ```typescript
+    const client = new GrvtClient({
+      apiKey: process.env.DEV_API_KEY,
+      apiSecret: process.env.DEV_API_SECRET,
+      env: EGrvtEnvironment.DEV,
+    });
+
+    const summary = await client.getFundingAccountSummary();
+    ```
+  </Tab>
+</Tabs>
+
+Source: `src/config/config.ts:1-21`
+
+## Real-Time Account Updates
+
+For real-time account updates via WebSocket, see the [WebSocket Client guide](/guides/websocket-client):
+
+```typescript
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const wsClient = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.DEV,
+});
+
+await wsClient.connect();
+
+// Subscribe to transfer history for real-time updates
+wsClient.subscribeTransferHistory(
+  'main-account-id',
+  (data) => {
+    console.log('Account transfer:', data);
+  },
+  'sub-account-id' // optional
+);
+```
+
+## Error Handling
+
+Handle common account management errors:
+
+```typescript
+try {
+  const summary = await client.getFundingAccountSummary();
+  console.log('Account summary:', summary);
+} catch (error) {
+  if (error.message.includes('authentication')) {
+    console.error('Authentication failed. Check your API key.');
+  } else if (error.message.includes('not found')) {
+    console.error('Account not found.');
+  } else {
+    console.error('Failed to fetch account:', error.message);
+  }
+}
+```
+
+<Warning>
+  Always handle authentication errors gracefully. The SDK will throw errors if the API key is invalid or expired.
+</Warning>
+
+## Best Practices
+
+<Steps>
+  <Step title="Cache Account Data">
+    Cache account summaries when appropriate to reduce API calls:
+
+    ```typescript
+    let cachedSummary: IApiFundingAccountSummaryResponse | null = null;
+    let cacheTime: number = 0;
+    const CACHE_TTL = 60000; // 1 minute
+
+    async function getAccountSummary() {
+      const now = Date.now();
+      if (cachedSummary && (now - cacheTime) < CACHE_TTL) {
+        return cachedSummary;
+      }
+      
+      cachedSummary = await client.getFundingAccountSummary();
+      cacheTime = now;
+      return cachedSummary;
+    }
+    ```
+  </Step>
+
+  <Step title="Use Environment Variables">
+    Store API credentials securely in environment variables:
+
+    ```typescript
+    const client = new GrvtClient({
+      apiKey: process.env.GRVT_API_KEY!,
+      apiSecret: process.env.GRVT_API_SECRET!,
+      env: EGrvtEnvironment.PRODUCTION,
+    });
+    ```
+  </Step>
+
+  <Step title="Handle Rate Limits">
+    Implement retry logic for rate limit errors:
+
+    ```typescript
+    async function getAccountWithRetry(maxRetries = 3) {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await client.getFundingAccountSummary();
+        } catch (error) {
+          if (i === maxRetries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+        }
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transfers" icon="arrow-right-arrow-left" href="/guides/transfers">
+    Transfer funds between accounts
+  </Card>
+  <Card title="Deposits & Withdrawals" icon="money-bill-transfer" href="/guides/deposits-withdrawals">
+    Move funds on and off the platform
+  </Card>
+  <Card title="WebSocket Client" icon="plug" href="/guides/websocket-client">
+    Get real-time account updates
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/guides/error-handling">
+    Handle errors properly
+  </Card>
+</CardGroup>

@@ -1,0 +1,110 @@
+---
+title: "Transfer Types"
+description: "Transfer-related types and interfaces in the GRVT SDK"
+---
+
+## ETransferProvider
+
+The `ETransferProvider` enum defines the available transfer providers for deposits and withdrawals.
+
+| Provider | Value | Description |
+|----------|-------|-------------|
+| RHINO | `'rhino'` | Rhino.fi transfer provider |
+
+### Usage
+
+```typescript
+import { ETransferProvider } from '@grvt/sdk';
+
+const provider = ETransferProvider.RHINO;
+```
+
+## ETransferDirection
+
+The `ETransferDirection` enum defines the direction of a transfer operation.
+
+| Direction | Value | Description |
+|-----------|-------|-------------|
+| DEPOSIT | `'deposit'` | Transfer funds into the GRVT platform |
+| WITHDRAWAL | `'withdrawal'` | Transfer funds out of the GRVT platform |
+
+### When to Use Each Direction
+
+- **DEPOSIT**: Use when moving funds from an external wallet or chain into your GRVT account
+- **WITHDRAWAL**: Use when moving funds from your GRVT account to an external wallet or chain
+
+### Usage
+
+```typescript
+import { ETransferDirection } from '@grvt/sdk';
+
+const direction = ETransferDirection.DEPOSIT;
+```
+
+## ITransferMetadata
+
+The `ITransferMetadata` interface contains metadata about a transfer operation.
+
+### Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `provider` | `ETransferProvider` | Yes | The transfer provider handling the operation |
+| `direction` | `ETransferDirection` | Yes | The direction of the transfer (deposit or withdrawal) |
+| `chainid` | `EChain` | Yes | The blockchain network for the transfer |
+| `endpoint` | `string` | Yes | The API endpoint for the transfer provider |
+| `provider_tx_id` | `string` | No | Transaction ID from the provider |
+| `provider_ref_id` | `string` | No | Reference ID from the provider |
+| Additional properties | `any` | No | The interface allows extra properties for provider-specific data |
+
+### Usage Example
+
+```typescript
+import { 
+  ITransferMetadata, 
+  ETransferProvider, 
+  ETransferDirection, 
+  EChain 
+} from '@grvt/sdk';
+
+const transferMetadata: ITransferMetadata = {
+  provider: ETransferProvider.RHINO,
+  direction: ETransferDirection.DEPOSIT,
+  chainid: EChain.ETHEREUM,
+  endpoint: 'https://api.rhino.fi/v1',
+  provider_tx_id: '0x123...abc',
+  provider_ref_id: 'ref-12345'
+};
+```
+
+## Complete Transfer Example
+
+```typescript
+import { 
+  ITransferMetadata,
+  ETransferProvider,
+  ETransferDirection,
+  EChain
+} from '@grvt/sdk';
+
+// Deposit example
+const depositMetadata: ITransferMetadata = {
+  provider: ETransferProvider.RHINO,
+  direction: ETransferDirection.DEPOSIT,
+  chainid: EChain.ARBITRUM_ONE,
+  endpoint: 'https://api.rhino.fi/v1/deposit'
+};
+
+// Withdrawal example
+const withdrawalMetadata: ITransferMetadata = {
+  provider: ETransferProvider.RHINO,
+  direction: ETransferDirection.WITHDRAWAL,
+  chainid: EChain.POLYGON,
+  endpoint: 'https://api.rhino.fi/v1/withdrawal',
+  provider_tx_id: '0xabc...123'
+};
+```
+
+<Note>
+The `ITransferMetadata` interface uses an index signature (`[key: string]: any`) to allow additional provider-specific properties beyond the defined fields.
+</Note>

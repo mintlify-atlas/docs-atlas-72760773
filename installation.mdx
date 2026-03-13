@@ -1,0 +1,195 @@
+---
+title: Installation
+description: Install the GRVT TypeScript SDK in your project
+---
+
+# Installation
+
+Install the GRVT TypeScript SDK using your preferred package manager.
+
+## Package Manager Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @grvt/sdk
+```
+
+```bash yarn
+yarn add @grvt/sdk
+```
+
+```bash pnpm
+pnpm add @grvt/sdk
+```
+
+</CodeGroup>
+
+## System Requirements
+
+Before installing the SDK, ensure your environment meets the following requirements:
+
+### Node.js Version
+
+The SDK requires Node.js version 20 or higher:
+
+```bash
+node --version
+# Should output v20.x.x or higher
+```
+
+<Warning>
+  Node.js versions below 20 are not supported. Please upgrade to Node.js 20 or later before installing the SDK.
+</Warning>
+
+### TypeScript (Recommended)
+
+While the SDK works with JavaScript, TypeScript is highly recommended for the best development experience:
+
+```bash
+npm install --save-dev typescript
+```
+
+The SDK is built with TypeScript 5.x and includes full type definitions.
+
+## Dependencies
+
+The SDK automatically installs the following peer dependencies:
+
+| Package | Version | Purpose |
+|---------|---------|----------|
+| `@grvt/client` | ^1.6.5 | Core API client |
+| `ethers` | ^6.13.5 | Ethereum utilities and signing |
+| `ws` | ^8.18.1 | WebSocket client |
+| `@metamask/eth-sig-util` | ^8.2.0 | EIP-712 signature utilities |
+| `set-cookie-parser` | ^2.7.1 | Cookie parsing for authentication |
+
+<Note>
+  All dependencies are automatically installed when you install `@grvt/sdk`. No additional configuration is required.
+</Note>
+
+## Verification
+
+Verify the installation by importing the SDK in your project:
+
+<Steps>
+  <Step title="Create a test file">
+    Create a new file called `test-sdk.ts` (or `test-sdk.js` for JavaScript projects):
+
+    ```typescript
+    import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+    console.log('GRVT SDK imported successfully!');
+    console.log('Available environments:', Object.keys(EGrvtEnvironment));
+    ```
+  </Step>
+
+  <Step title="Run the test file">
+    For TypeScript projects:
+
+    ```bash
+    npx ts-node test-sdk.ts
+    ```
+
+    For JavaScript projects:
+
+    ```bash
+    node test-sdk.js
+    ```
+  </Step>
+
+  <Step title="Verify output">
+    You should see output similar to:
+
+    ```
+    GRVT SDK imported successfully!
+    Available environments: [ 'PRODUCTION', 'TESTNET', 'STAGING', 'DEV' ]
+    ```
+
+    If you see this output, the SDK is installed correctly!
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Node.js Version Error
+
+If you encounter an error about Node.js version:
+
+```
+engine node: required version >=20
+```
+
+Upgrade Node.js using [nvm](https://github.com/nvm-sh/nvm):
+
+```bash
+nvm install 20
+nvm use 20
+```
+
+Or download the latest version from [nodejs.org](https://nodejs.org).
+
+### TypeScript Configuration
+
+If you're using TypeScript and encounter module resolution issues, ensure your `tsconfig.json` includes:
+
+```json
+{
+  "compilerOptions": {
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"]
+  }
+}
+```
+
+### Import Errors
+
+If you encounter import errors, try:
+
+1. Clear your package manager cache:
+
+   <CodeGroup>
+
+   ```bash npm
+   npm cache clean --force
+   rm -rf node_modules package-lock.json
+   npm install
+   ```
+
+   ```bash yarn
+   yarn cache clean
+   rm -rf node_modules yarn.lock
+   yarn install
+   ```
+
+   ```bash pnpm
+   pnpm store prune
+   rm -rf node_modules pnpm-lock.yaml
+   pnpm install
+   ```
+
+   </CodeGroup>
+
+2. Ensure you're using the latest version of the SDK:
+
+   ```bash
+   npm list @grvt/sdk
+   ```
+
+## Next Steps
+
+Now that you have the SDK installed, you're ready to start building:
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started with your first API calls
+  </Card>
+  
+  <Card title="Authentication" icon="key" href="/concepts/authentication">
+    Learn how to authenticate with the GRVT API
+  </Card>
+</CardGroup>

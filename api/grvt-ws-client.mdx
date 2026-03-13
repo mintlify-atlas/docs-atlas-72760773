@@ -1,0 +1,206 @@
+---
+title: 'GrvtWsClient'
+description: 'WebSocket client for real-time data feeds and subscriptions'
+---
+
+## Overview
+
+The `GrvtWsClient` class provides a WebSocket connection to GRVT's real-time data feeds. It supports automatic reconnection, message handling, and subscription management.
+
+## Constructor
+
+```typescript
+new GrvtWsClient(config: { apiKey: string; env: EGrvtEnvironment })
+```
+
+### Parameters
+
+<ParamField path="config" type="object" required>
+  Configuration object for the WebSocket client
+  
+  <Expandable title="Configuration properties">
+    <ParamField path="apiKey" type="string" required>
+      Your GRVT API key for authentication
+    </ParamField>
+    
+    <ParamField path="env" type="EGrvtEnvironment" required>
+      The environment to connect to: `PRODUCTION`, `TESTNET`, `STAGING`, or `DEV`
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example
+
+```typescript
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/client';
+
+const wsClient = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.TESTNET
+});
+```
+
+## Methods
+
+### connect()
+
+Establishes a WebSocket connection to the GRVT server.
+
+```typescript
+await wsClient.connect(): Promise<void>
+```
+
+#### Returns
+
+<ResponseField name="Promise<void>" type="Promise<void>">
+  Resolves when the connection is successfully established
+</ResponseField>
+
+#### Example
+
+```typescript
+try {
+  await wsClient.connect();
+  console.log('WebSocket connected successfully');
+} catch (error) {
+  console.error('Connection failed:', error);
+}
+```
+
+### disconnect()
+
+Closes the WebSocket connection and cleans up resources.
+
+```typescript
+wsClient.disconnect(): void
+```
+
+#### Example
+
+```typescript
+wsClient.disconnect();
+console.log('WebSocket disconnected');
+```
+
+### subscribeTransferHistory()
+
+Subscribes to real-time transfer events for an account.
+
+```typescript
+wsClient.subscribeTransferHistory(
+  main_account_id: string,
+  handler: TMessageHandler<Required<IWSTransferFeedDataV1>['feed']>,
+  sub_account_id?: string
+): void
+```
+
+#### Parameters
+
+<ParamField path="main_account_id" type="string" required>
+  The main account ID to subscribe to
+</ParamField>
+
+<ParamField path="handler" type="TMessageHandler" required>
+  Callback function to handle incoming transfer events
+</ParamField>
+
+<ParamField path="sub_account_id" type="string">
+  Optional sub-account ID to filter transfers for a specific sub-account
+</ParamField>
+
+#### Example
+
+```typescript
+await wsClient.connect();
+
+wsClient.subscribeTransferHistory(
+  'main-account-id',
+  (transferData) => {
+    console.log('New transfer event:', transferData);
+  },
+  'sub-account-id' // optional
+);
+```
+
+## Features
+
+### Automatic Reconnection
+
+The client automatically attempts to reconnect if the connection is lost. It uses exponential backoff with a maximum of 5 reconnection attempts.
+
+<Info>
+  Reconnection delay starts at 2 seconds and doubles with each attempt, up to a maximum of 30 seconds.
+</Info>
+
+### Message Timeout Detection
+
+The client monitors incoming messages and automatically reconnects if no messages are received within 5 seconds. This ensures the connection remains healthy.
+
+### Connection State Management
+
+The client internally manages connection state, subscription IDs, and message handlers, ensuring reliable message delivery.
+
+## Full Example
+
+```typescript
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/client';
+
+const wsClient = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.TESTNET
+});
+
+// Connect to WebSocket
+await wsClient.connect();
+
+// Subscribe to transfer events
+wsClient.subscribeTransferHistory(
+  'your-main-account-id',
+  (transfer) => {
+    console.log('Transfer received:', {
+      amount: transfer.amount,
+      currency: transfer.currency,
+      timestamp: transfer.timestamp
+    });
+  }
+);
+
+// Later, when done
+wsClient.disconnect();
+```
+
+## Error Handling
+
+```typescript
+try {
+  await wsClient.connect();
+  
+  wsClient.subscribeTransferHistory(
+    'account-id',
+    (data) => console.log(data)
+  );
+} catch (error) {
+  console.error('WebSocket error:', error);
+  wsClient.disconnect();
+}
+```
+
+<Warning>
+  Always call `disconnect()` when you're done using the WebSocket client to properly clean up resources.
+</Warning>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="GrvtClient" icon="globe" href="/api/grvt-client">
+    REST API client for GRVT services
+  </Card>
+  
+  <Card title="Transfer Feed" icon="rss" href="/api/ws-transfer-feed">
+    Details about transfer feed data structure
+  </Card>
+  
+  <Card title="WebSocket Guide" icon="plug" href="/guides/websocket-client">
+    Complete guide to using WebSocket client
+  </Card>
+</CardGroup>

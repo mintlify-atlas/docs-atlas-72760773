@@ -1,0 +1,202 @@
+---
+title: "Subscribe to Transfer Feed"
+description: "Receive real-time transfer updates via WebSocket subscription"
+---
+
+## Overview
+
+The `subscribeTransferHistory()` method on the `GrvtWsClient` enables real-time monitoring of transfer events for your account. When subscribed, you'll receive instant notifications whenever a transfer occurs, eliminating the need for polling the REST API.
+
+## Method Signature
+
+```typescript
+subscribeTransferHistory(
+  main_account_id: string,
+  handler: TMessageHandler<Required<IWSTransferFeedDataV1>['feed']>,
+  sub_account_id?: string
+): void
+```
+
+## Parameters
+
+<ParamField path="main_account_id" type="string" required>
+  Your main account identifier. This is the primary account ID that owns the sub-accounts.
+</ParamField>
+
+<ParamField path="handler" type="TMessageHandler" required>
+  Callback function that will be invoked whenever a transfer event is received. The handler receives the transfer feed data as its parameter.
+  
+  **Handler Signature:**
+  ```typescript
+  (data: Required<IWSTransferFeedDataV1>['feed']) => void
+  ```
+</ParamField>
+
+<ParamField path="sub_account_id" type="string">
+  Optional sub-account ID to filter transfer events. If provided, you'll only receive transfers for this specific sub-account. If omitted, you'll receive transfers for all sub-accounts under the main account.
+</ParamField>
+
+## Return Value
+
+This method does not return a value. It registers the subscription and handler, which will be called asynchronously when transfer events occur.
+
+## WebSocket Connection
+
+<Warning>
+  You must call `connect()` on the `GrvtWsClient` before subscribing to any feeds. The method will throw an error "WebSocket not connected" if you attempt to subscribe without an active connection.
+</Warning>
+
+## Subscription Mechanism
+
+When you call `subscribeTransferHistory()`, the client:
+
+1. Constructs a JSON-RPC 2.0 subscription message with:
+   - Stream: `v1.transfer`
+   - Selector: `main_account_id` or `main_account_id-sub_account_id` (if sub-account specified)
+
+2. Sends the subscription request to the WebSocket server
+
+3. Registers your handler to be called when matching transfer events arrive
+
+4. Automatically routes incoming transfer feed data to your handler function
+
+## Transfer Feed Data
+
+The handler receives transfer feed data containing:
+
+- **Transfer ID**: Unique identifier for the transfer
+- **From/To Account Details**: Source and destination account information
+- **Currency**: The currency being transferred
+- **Amount**: Number of tokens transferred
+- **Transfer Type**: Type of transfer (STANDARD, BRIDGE_DEPOSIT, BRIDGE_WITHDRAW, etc.)
+- **Timestamp**: When the transfer occurred
+- **Metadata**: Additional transfer metadata (for bridge operations)
+- **Signature**: Cryptographic signature of the transfer
+
+## Example
+
+```typescript
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the WebSocket client
+const client = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Connect to WebSocket
+await client.connect();
+
+// Subscribe to transfer history
+client.subscribeTransferHistory(
+  'main-account-id',
+  (data) => {
+    console.log('Received transfer:', data);
+  },
+  'sub-account-id' // optional
+);
+
+// Disconnect when done
+client.disconnect();
+```
+
+## Complete Example with Handler
+
+```typescript
+import { GrvtWsClient, EGrvtEnvironment } from '@grvt/sdk';
+
+const wsClient = new GrvtWsClient({
+  apiKey: 'your-api-key',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Connect to WebSocket
+await wsClient.connect();
+
+// Define a handler for transfer events
+const handleTransfer = (transferData) => {
+  console.log('Transfer Event Received:');
+  console.log('- Transfer ID:', transferData.transfer_id);
+  console.log('- From Account:', transferData.from_account_id);
+  console.log('- To Account:', transferData.to_account_id);
+  console.log('- Currency:', transferData.currency);
+  console.log('- Amount:', transferData.num_tokens);
+  console.log('- Type:', transferData.transfer_type);
+  console.log('- Timestamp:', transferData.event_time);
+  
+  // Process the transfer event
+  // Update UI, trigger notifications, log to database, etc.
+};
+
+// Subscribe to all transfers for the main account
+wsClient.subscribeTransferHistory(
+  'your-main-account-id',
+  handleTransfer
+);
+
+// Or subscribe to a specific sub-account only
+wsClient.subscribeTransferHistory(
+  'your-main-account-id',
+  handleTransfer,
+  'specific-sub-account-id'
+);
+```
+
+## Connection Management
+
+The WebSocket client includes automatic connection management:
+
+- **Automatic Reconnection**: Reconnects with exponential backoff if the connection drops
+- **Connection Monitoring**: Detects stale connections (no messages for 5 seconds) and reconnects
+- **Maximum Retry Attempts**: Up to 5 reconnection attempts before giving up
+
+<Info>
+  **Important**: Subscriptions are **not automatically restored** after a reconnection. You need to manually resubscribe when the connection is re-established.
+</Info>
+
+## Error Handling
+
+```typescript
+try {
+  await wsClient.connect();
+  
+  wsClient.subscribeTransferHistory(
+    'main-account-id',
+    (data) => {
+      try {
+        // Handle transfer data
+        processTransfer(data);
+      } catch (error) {
+        console.error('Error processing transfer:', error);
+      }
+    }
+  );
+} catch (error) {
+  console.error('WebSocket connection error:', error);
+}
+```
+
+## Use Cases
+
+- **Real-time Dashboard Updates**: Display live transfer activity in your application
+- **Instant Notifications**: Alert users immediately when transfers complete
+- **Automated Processing**: Trigger workflows based on incoming transfers
+- **Audit Logging**: Record all transfer events in real-time
+- **Balance Synchronization**: Update account balances as transfers occur
+- **Fraud Detection**: Monitor transfers for suspicious patterns
+
+## Cleanup
+
+<Warning>
+  Always call `disconnect()` when you're done with the WebSocket connection to properly clean up resources and close the connection:
+  
+  ```typescript
+  wsClient.disconnect();
+  ```
+</Warning>
+
+## Related Methods
+
+- [GrvtWsClient](/api/grvt-ws-client) - WebSocket client overview
+- [Get Transfer History](/api/transfer-history) - Query historical transfers via REST API
+- [Transfer](/api/transfer) - Initiate a new transfer

@@ -1,0 +1,108 @@
+---
+title: "Signatures"
+description: "Signature options and signing configuration in the GRVT SDK"
+---
+
+## ISigningOptions
+
+The `ISigningOptions` interface defines optional parameters for signing operations in the GRVT SDK. These options control nonce management and signature expiration.
+
+### Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `nonce` | `number` | No | A unique number for replay protection |
+| `expiration` | `string` | No | ISO 8601 timestamp when the signature expires |
+
+### Nonce
+
+The `nonce` field is used for replay protection to ensure that signed messages cannot be reused.
+
+**Constraints:**
+- Must be a non-negative integer (≥ 0)
+- Should be unique for each signing operation
+- Typically incremented sequentially
+
+**Usage:**
+```typescript
+import { ISigningOptions } from '@grvt/sdk';
+
+const options: ISigningOptions = {
+  nonce: 12345
+};
+```
+
+### Expiration
+
+The `expiration` field defines when a signature becomes invalid.
+
+**Constraints:**
+- Must be a valid ISO 8601 timestamp string
+- Must be within 30 days from the current time
+- After expiration, the signature will be rejected by the platform
+
+**Format:** `YYYY-MM-DDTHH:mm:ss.sssZ`
+
+**Usage:**
+```typescript
+import { ISigningOptions } from '@grvt/sdk';
+
+// Set expiration to 1 hour from now
+const oneHourLater = new Date(Date.now() + 60 * 60 * 1000);
+
+const options: ISigningOptions = {
+  expiration: oneHourLater.toISOString()
+};
+```
+
+## Complete Example
+
+```typescript
+import { ISigningOptions } from '@grvt/sdk';
+
+// Example 1: With both nonce and expiration
+const signingOptions: ISigningOptions = {
+  nonce: 12345,
+  expiration: '2026-03-13T12:00:00.000Z'
+};
+
+// Example 2: With only nonce
+const nonceOnly: ISigningOptions = {
+  nonce: 67890
+};
+
+// Example 3: With only expiration
+const expirationOnly: ISigningOptions = {
+  expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+};
+
+// Example 4: Empty options (both fields are optional)
+const noOptions: ISigningOptions = {};
+```
+
+## Best Practices
+
+<Warning>
+**Nonce Management**: Always ensure nonces are unique and incrementing to prevent replay attacks. Never reuse a nonce for different operations.
+</Warning>
+
+<Warning>
+**Expiration Window**: Keep expiration times within the 30-day limit. Setting expiration too far in the future will result in signature rejection.
+</Warning>
+
+<Info>
+**Optional Fields**: Both `nonce` and `expiration` are optional. If not provided, the SDK will use default values or handle signing without these constraints.
+</Info>
+
+## Validation Rules
+
+### Nonce Validation
+- ✅ Valid: `0`, `1`, `12345`, `999999`
+- ❌ Invalid: `-1`, `-100` (negative numbers)
+- ❌ Invalid: `1.5`, `3.14` (non-integers)
+
+### Expiration Validation
+- ✅ Valid: Within 30 days, ISO 8601 format
+- ❌ Invalid: More than 30 days in the future
+- ❌ Invalid: Past timestamps
+- ❌ Invalid: Non-ISO 8601 format strings

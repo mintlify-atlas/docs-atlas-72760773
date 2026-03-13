@@ -1,0 +1,189 @@
+---
+title: 'REST Client'
+description: 'Learn how to initialize and use the GrvtClient for REST API interactions'
+---
+
+## Overview
+
+The `GrvtClient` provides a complete interface for interacting with the GRVT REST API. It handles authentication, request signing, and cookie management automatically.
+
+## Installation
+
+```bash
+npm install @grvt/sdk
+```
+
+## Initialization
+
+<Steps>
+  <Step title="Import the Client">
+    Import the necessary classes and enums from the SDK:
+
+    ```typescript
+    import {
+      GrvtClient,
+      ECurrency,
+      ETransferType,
+      EGrvtEnvironment,
+      ISigningOptions
+    } from '@grvt/sdk';
+    ```
+  </Step>
+
+  <Step title="Create Client Instance">
+    Initialize the client with your API credentials:
+
+    ```typescript
+    const client = new GrvtClient({
+      apiKey: 'your-api-key',
+      apiSecret: 'your-api-secret',
+      env: EGrvtEnvironment.DEV,
+    });
+    ```
+
+    <Note>
+      The `apiSecret` is optional but required for operations that need request signing (transfers, withdrawals, etc.).
+    </Note>
+  </Step>
+</Steps>
+
+## Configuration Options
+
+The `IGrvtConfig` interface accepts the following parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `apiKey` | `string` | No | Your API key for authentication |
+| `apiSecret` | `string` | No | Your API secret for signing requests |
+| `tradingAccountId` | `string` | No | Your trading account ID |
+| `env` | `EGrvtEnvironment` | Yes | The environment to connect to |
+
+### Environment Options
+
+<CodeGroup>
+```typescript Production
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.PRODUCTION,
+});
+```
+
+```typescript Testnet
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.TESTNET,
+});
+```
+
+```typescript Development
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+```
+</CodeGroup>
+
+## Making API Calls
+
+### Account Summary
+
+Retrieve your funding account summary:
+
+```typescript
+const accountSummary = await client.getFundingAccountSummary();
+console.log(accountSummary);
+```
+
+Retrieve a specific sub-account summary:
+
+```typescript
+const subAccountSummary = await client.getSubAccountSummary({
+  sub_account_id: 'your-sub-account-id',
+});
+console.log(subAccountSummary);
+```
+
+### Current Time
+
+Get the current server time in milliseconds since epoch:
+
+```typescript
+const currentTime = await client.getCurrentTime();
+console.log(currentTime); // Example: 1747397398409
+```
+
+### Chain Utilities
+
+Convert Rhino chain names to Gravity chain IDs:
+
+```typescript
+const chainID = await client.getGravityChainIDFromRhinoChain('BNB_SMART_CHAIN');
+// Returns:
+// - On DEV/STAGING/TESTNET: 97
+// - On PRODUCTION: 56
+```
+
+<Note>
+  The SDK automatically maps environments to Rhino environments:
+  - DEV, STAGING → Rhino DEV
+  - TESTNET → Rhino STG
+  - PRODUCTION → Rhino PROD
+</Note>
+
+## Authentication
+
+The client handles authentication automatically using cookie-based authentication:
+
+<Steps>
+  <Step title="Cookie Refresh">
+    The client automatically refreshes authentication cookies when they expire (within 5 seconds of expiration).
+    
+    Source: `src/client/GrvtBaseClient.ts:22-37`
+  </Step>
+
+  <Step title="Request Signing">
+    For operations requiring signatures (transfers, withdrawals), the SDK automatically signs requests using your `apiSecret`.
+    
+    Source: `src/client/GrvtClient.ts:132-140`
+  </Step>
+</Steps>
+
+## Error Handling
+
+The client throws errors for various scenarios:
+
+```typescript
+try {
+  const summary = await client.getFundingAccountSummary();
+} catch (error) {
+  console.error('API call failed:', error.message);
+}
+```
+
+Common errors include:
+- Missing API credentials
+- Invalid environment configuration
+- Network errors
+- Authentication failures
+
+See the [Error Handling](/guides/error-handling) guide for more details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="WebSocket Client" icon="plug" href="/guides/websocket-client">
+    Learn about real-time data streaming
+  </Card>
+  <Card title="Transfers" icon="arrow-right-arrow-left" href="/guides/transfers">
+    Execute transfers between accounts
+  </Card>
+  <Card title="Deposits & Withdrawals" icon="money-bill-transfer" href="/guides/deposits-withdrawals">
+    Move funds on and off the platform
+  </Card>
+  <Card title="Account Management" icon="user" href="/guides/account-management">
+    Manage accounts and sub-accounts
+  </Card>
+</CardGroup>

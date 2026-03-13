@@ -1,0 +1,572 @@
+---
+title: "Signing"
+description: "Learn how to sign transfers, withdrawals, and other operations using EIP-712 signatures"
+---
+
+## Overview
+
+The GRVT platform uses EIP-712 typed data signing to cryptographically sign certain operations like transfers, withdrawals, and account management actions. This ensures that only authorized parties can initiate these sensitive operations.
+
+## What Requires Signing?
+
+The following operations require EIP-712 signatures:
+
+- **Transfers** - Moving funds between accounts
+- **Withdrawals** - Withdrawing funds to an Ethereum address
+- **Deposits** - Depositing funds from an Ethereum address
+- **Account Management** - Adding/removing signers, setting permissions
+- **Trading** - Placing orders (coming soon)
+
+<Info>
+Read-only operations like querying balances, history, or market data do not require signing.
+</Info>
+
+## EIP-712 Signing
+
+The SDK uses the EIP-712 standard for typed structured data signing. This provides better security and user experience compared to raw message signing.
+
+### Domain Configuration
+
+Each environment has its own EIP-712 domain with a unique chain ID:
+
+```typescript src/signing/types.ts
+export const EIP712Domain = [
+  { name: 'name', type: 'string' },
+  { name: 'version', type: 'string' },
+  { name: 'chainId', type: 'uint256' },
+];
+
+export interface EIP712DomainData {
+  name: string;
+  version: string;
+  chainId: number;
+}
+
+export const domain: EIP712DomainData = {
+  name: 'GRVT Exchange',
+  version: '0',
+  chainId: 1, // Default, overridden per environment
+};
+```
+
+The chain ID is automatically set based on your environment:
+
+- **PRODUCTION**: Chain ID `325`
+- **TESTNET**: Chain ID `326`
+- **STAGING**: Chain ID `327`
+- **DEV**: Chain ID `327`
+
+## Signing Options Interface
+
+When signing operations, you can provide optional parameters through the `ISigningOptions` interface:
+
+```typescript src/types/signature.ts
+export interface ISigningOptions {
+  nonce?: number;
+  expiration?: string;
+}
+```
+
+### Nonce
+
+A nonce is a unique number used to prevent replay attacks. Each signed message should have a unique nonce.
+
+**Default behavior**: If not provided, the SDK automatically generates a random nonce:
+
+```typescript src/signing/utils.ts
+export function GenerateNonce(): number {
+  return Math.floor(Math.random() * 1e9);
+}
+```
+
+<Warning>
+Nonces must be non-negative. The SDK validates this automatically.
+</Warning>
+
+### Expiration
+
+Expiration defines how long the signature remains valid. Expressed in nanoseconds since Unix epoch.
+
+**Default behavior**: If not provided, the SDK sets expiration to 24 hours from now:
+
+```typescript src/signing/utils.ts
+export function GenerateExpiration(expirationInHours: number = 24): string {
+  const expirationTime = (Date.now() + expirationInHours * 60 * 60 * 1000) * 1e6;
+  return expirationTime.toString();
+}
+```
+
+**Validation rules**:
+- Expiration must be in the future
+- Expiration cannot be more than 30 days in the future
+
+```typescript src/signing/validation.ts
+const validateExpiration = (expiration: string) => {
+  const expirationNs = BigInt(expiration);
+  const nowNs = BigInt(Date.now()) * BigInt(1_000_000);
+  const thirtyDaysNs = BigInt(30 * 24 * 60 * 60 * 1000) * BigInt(1_000_000);
+
+  if (expirationNs < nowNs) {
+    throw new Error('Expiration is expired');
+  }
+  if (expirationNs > nowNs + thirtyDaysNs) {
+    throw new Error('Expiration is too far in the future, must be within 30 days');
+  }
+};
+```
+
+## Automatic vs Manual Signing
+
+### Automatic Signing (Recommended)
+
+The SDK provides high-level methods that automatically handle signing:
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/client';
+import { Wallet } from 'ethers';
+
+const client = new GrvtClient({
+  apiKey: process.env.GRVT_API_KEY,
+  apiSecret: process.env.GRVT_API_SECRET,
+  env: EGrvtEnvironment.TESTNET
+});
+
+const wallet = new Wallet(process.env.PRIVATE_KEY);
+
+// Transfer is automatically signed
+const transfer = await client.transfer(
+  {
+    from_account_id: '0xYourAddress',
+    from_sub_account_id: '1',
+    to_account_id: '0xRecipientAddress',
+    to_sub_account_id: '1',
+    currency: 'USDC',
+    num_tokens: '100'
+  },
+  wallet
+);
+```
+
+With automatic signing:
+- The SDK generates a nonce automatically
+- Expiration is set to 24 hours by default
+- The signature is created and included in the request
+- No manual signing code required
+
+### Manual Signing
+
+For advanced use cases, you can manually sign operations:
+
+```typescript
+import { signTransfer } from '@grvt/client/signing';
+import { EGrvtEnvironment } from '@grvt/client';
+import { Wallet } from 'ethers';
+
+const wallet = new Wallet(process.env.PRIVATE_KEY);
+
+// Manually sign a transfer
+const signature = await signTransfer(
+  {
+    from_account_id: '0xYourAddress',
+    from_sub_account_id: '1',
+    to_account_id: '0xRecipientAddress',
+    to_sub_account_id: '1',
+    currency: 'USDC',
+    num_tokens: '100'
+  },
+  wallet,
+  EGrvtEnvironment.TESTNET,
+  {
+    nonce: 12345,
+    expiration: '1735689600000000000' // Custom expiration
+  }
+);
+
+// Use the signature in your request
+const transfer = await client.transferWithSignature(transferData, signature);
+```
+
+## Signing Transfers
+
+The `signTransfer` function creates an EIP-712 signature for transfer operations:
+
+```typescript src/signing/transfer.ts
+export const signTransfer = async (
+  transfer: IApiTransferRequest,
+  wallet: Wallet,
+  env: EGrvtEnvironment,
+  options?: ISigningOptions
+): Promise<ISignature> => {
+  if (options) {
+    validateISigningOptions(options);
+  }
+  const nonce = options?.nonce ?? GenerateNonce();
+  const expiration = options?.expiration || GenerateExpiration();
+  const domain = getEIP712DomainData(env);
+
+  if (!transfer.num_tokens) {
+    throw new Error('num_tokens is required');
+  }
+  const numTokens = parseNumTokens(transfer.num_tokens);
+  const messageData = {
+    fromAccount: transfer.from_account_id || '',
+    fromSubAccount: transfer.from_sub_account_id || '',
+    toAccount: transfer.to_account_id || '',
+    toSubAccount: transfer.to_sub_account_id || '',
+    tokenCurrency: transfer.currency ? Object.keys(ECurrency).indexOf(transfer.currency) + 1 : 0,
+    numTokens: numTokens,
+    nonce: nonce,
+    expiration: expiration,
+  };
+  const signature = await Signer.sign(wallet.privateKey, {
+    ...Transfer,
+    domain,
+    message: messageData,
+  });
+  const { r, s, v } = Signer.decode(signature);
+
+  return {
+    r: r,
+    s: s,
+    v: v,
+    signer: wallet.address,
+    nonce: nonce,
+    expiration: expiration,
+  };
+};
+```
+
+### Transfer Type Definition
+
+The Transfer EIP-712 type structure:
+
+```typescript src/signing/types.ts
+export const Transfer = {
+  primaryType: PrimaryType.Transfer,
+  domain,
+  types: {
+    EIP712Domain,
+    [PrimaryType.Transfer]: [
+      { name: 'fromAccount', type: 'address' },
+      { name: 'fromSubAccount', type: 'uint64' },
+      { name: 'toAccount', type: 'address' },
+      { name: 'toSubAccount', type: 'uint64' },
+      { name: 'tokenCurrency', type: 'uint8' },
+      { name: 'numTokens', type: 'uint64' },
+      { name: 'nonce', type: 'uint32' },
+      { name: 'expiration', type: 'int64' },
+    ],
+  },
+};
+```
+
+## Signing Withdrawals
+
+The `signWithdrawal` function creates signatures for withdrawal operations:
+
+```typescript src/signing/withdraw.ts
+export const signWithdrawal = async (
+  withdrawal: IApiWithdrawalRequest,
+  wallet: Wallet,
+  env: EGrvtEnvironment,
+  options?: ISigningOptions
+): Promise<ISignature> => {
+  if (options) {
+    validateISigningOptions(options);
+  }
+  const nonce = options?.nonce ?? GenerateNonce();
+  const expiration = options?.expiration || GenerateExpiration();
+  const domain = getEIP712DomainData(env);
+
+  const messageData = {
+    fromAccount: withdrawal.from_account_id || '',
+    toEthAddress: withdrawal.to_eth_address || '',
+    tokenCurrency: withdrawal.currency
+      ? Object.keys(ECurrency).indexOf(withdrawal.currency) + 1
+      : 0,
+    numTokens: withdrawal.num_tokens ? Math.floor(parseFloat(withdrawal.num_tokens) * 1e6) : 0,
+    nonce: nonce,
+    expiration: expiration,
+  };
+  const signature = await Signer.sign(wallet.privateKey, {
+    ...Withdrawal,
+    domain,
+    message: messageData,
+  });
+  const { r, s, v } = Signer.decode(signature);
+
+  return {
+    r: r,
+    s: s,
+    v: v,
+    signer: wallet.address,
+    nonce: nonce,
+    expiration: expiration,
+  };
+};
+```
+
+### Withdrawal Type Definition
+
+```typescript src/signing/types.ts
+export const Withdrawal = {
+  primaryType: PrimaryType.Withdrawal,
+  domain,
+  types: {
+    EIP712Domain,
+    [PrimaryType.Withdrawal]: [
+      { name: 'fromAccount', type: 'address' },
+      { name: 'toEthAddress', type: 'address' },
+      { name: 'tokenCurrency', type: 'uint8' },
+      { name: 'numTokens', type: 'uint64' },
+      { name: 'nonce', type: 'uint32' },
+      { name: 'expiration', type: 'int64' },
+    ],
+  },
+};
+```
+
+## The Signer Class
+
+The `Signer` class handles the low-level signing and signature decoding:
+
+```typescript src/signing/signer.ts
+import { SignTypedDataVersion, signTypedData } from '@metamask/eth-sig-util';
+
+export class Signer {
+  static sign(
+    privateKey: string,
+    data: TContractTypesUnion & {
+      message: any;
+    }
+  ): string {
+    return signTypedData({
+      privateKey: Buffer.from(privateKey.replace(/^0x/, ''), 'hex'),
+      data: data as any,
+      version: SignTypedDataVersion.V4,
+    });
+  }
+
+  static decode(signature: ReturnType<typeof Signer.sign>): {
+    r: string;
+    s: string;
+    v: number;
+  } {
+    // Decodes signature into r, s, v components
+    // ...
+  }
+}
+```
+
+The signer uses the `@metamask/eth-sig-util` library with EIP-712 v4 signing.
+
+## Signature Components
+
+A complete signature contains:
+
+```typescript
+interface ISignature {
+  r: string;       // First 32 bytes of signature
+  s: string;       // Second 32 bytes of signature
+  v: number;       // Recovery id (27 or 28)
+  signer: string;  // Ethereum address that created the signature
+  nonce: number;   // Unique nonce for replay protection
+  expiration: string; // Expiration time in nanoseconds
+}
+```
+
+## Custom Signing Options
+
+You can customize nonce and expiration for specific requirements:
+
+### Setting Custom Nonce
+
+```typescript
+const signature = await signTransfer(
+  transferData,
+  wallet,
+  EGrvtEnvironment.TESTNET,
+  {
+    nonce: 42 // Custom nonce
+  }
+);
+```
+
+<Note>
+If you manage nonces manually, ensure each signature uses a unique nonce to prevent replay attacks.
+</Note>
+
+### Setting Custom Expiration
+
+```typescript
+// Expire in 1 hour instead of default 24 hours
+const oneHourFromNow = (Date.now() + 60 * 60 * 1000) * 1e6;
+
+const signature = await signTransfer(
+  transferData,
+  wallet,
+  EGrvtEnvironment.TESTNET,
+  {
+    expiration: oneHourFromNow.toString()
+  }
+);
+```
+
+### Both Custom Options
+
+```typescript
+const signature = await signTransfer(
+  transferData,
+  wallet,
+  EGrvtEnvironment.TESTNET,
+  {
+    nonce: 12345,
+    expiration: oneHourFromNow.toString()
+  }
+);
+```
+
+## Validation
+
+The SDK automatically validates signing options:
+
+```typescript src/signing/validation.ts
+export const validateISigningOptions = (options: ISigningOptions) => {
+  if (options.nonce) {
+    validateNonce(options.nonce);
+  }
+  if (options.expiration) {
+    validateExpiration(options.expiration);
+  }
+};
+```
+
+### Nonce Validation
+
+```typescript
+const validateNonce = (nonce: number) => {
+  if (nonce < 0) {
+    throw new Error('Nonce must not be negative');
+  }
+};
+```
+
+### Expiration Validation
+
+```typescript
+const validateExpiration = (expiration: string) => {
+  const expirationNs = BigInt(expiration);
+  const nowNs = BigInt(Date.now()) * BigInt(1_000_000);
+  const thirtyDaysNs = BigInt(30 * 24 * 60 * 60 * 1000) * BigInt(1_000_000);
+
+  if (expirationNs < nowNs) {
+    throw new Error('Expiration is expired');
+  }
+  if (expirationNs > nowNs + thirtyDaysNs) {
+    throw new Error('Expiration is too far in the future, must be within 30 days');
+  }
+};
+```
+
+## Available Primary Types
+
+The SDK supports signing for multiple operation types:
+
+```typescript src/signing/types.ts
+export const PrimaryType = keyMirror({
+  // Account
+  CreateAccount: 0,
+  AddAccountSigner: 0,
+  RemoveAccountSigner: 0,
+  SetAccountSignerPermissions: 0,
+  AddWithdrawalAddress: 0,
+  RemoveWithdrawalAddress: 0,
+  AddTransferAccount: 0,
+  RemoveTransferAccount: 0,
+  
+  // SubAccount
+  CreateSubAccount: 0,
+  AddSubAccountSigner: 0,
+  RemoveSubAccountSigner: 0,
+  SetSubAccountSignerPermissions: 0,
+  
+  // Transfer
+  Deposit: 0,
+  Transfer: 0,
+  Withdrawal: 0,
+  
+  // Trade
+  Order: 0,
+});
+```
+
+## Security Best Practices
+
+<Warning>
+Never expose your private keys. Always use environment variables or secure key management systems.
+</Warning>
+
+### Private Key Management
+
+```typescript
+// Good: Load from environment variable
+const wallet = new Wallet(process.env.PRIVATE_KEY);
+
+// Bad: Hardcoded private key
+const wallet = new Wallet('0x1234...'); // Never do this!
+```
+
+### Signature Expiration
+
+- Use shorter expirations for sensitive operations
+- Default 24 hours is reasonable for most use cases
+- Consider 1-hour expiration for high-value withdrawals
+- Never set expiration beyond 30 days (enforced by validation)
+
+### Nonce Management
+
+- Let the SDK generate nonces automatically for simplicity
+- If managing manually, ensure uniqueness to prevent replay attacks
+- Consider using a counter-based nonce system for ordered operations
+
+## Troubleshooting
+
+### Signature Validation Failed
+
+If signatures are rejected:
+
+1. **Check environment** - Ensure wallet network matches SDK environment
+2. **Verify expiration** - Signature may have expired
+3. **Check nonce** - May have been used previously (replay protection)
+4. **Validate chain ID** - Must match the environment's chain ID
+
+### Expiration Errors
+
+<AccordionGroup>
+  <Accordion title="Expiration is expired">
+    The expiration time is in the past. Ensure system clocks are synchronized and generate a new signature.
+  </Accordion>
+  
+  <Accordion title="Expiration is too far in the future">
+    Expiration cannot exceed 30 days. Use a shorter expiration period.
+  </Accordion>
+</AccordionGroup>
+
+### Invalid Signature Format
+
+Ensure the signature components are correctly formatted:
+- `r` and `s` should be hex strings prefixed with `0x`
+- `v` should be a number (27 or 28)
+- All components must be present
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transfer Guide" icon="arrow-right-arrow-left" href="/guides/transfers">
+    Learn how to perform transfers with automatic signing
+  </Card>
+  
+  <Card title="Withdrawals Guide" icon="arrow-up-from-bracket" href="/guides/deposits-withdrawals">
+    Understand the complete withdrawal flow
+  </Card>
+</CardGroup>

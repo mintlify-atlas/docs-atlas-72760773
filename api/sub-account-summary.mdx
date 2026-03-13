@@ -1,0 +1,253 @@
+---
+title: 'getSubAccountSummary'
+description: 'Retrieve sub-account summary and detailed information'
+---
+
+## Overview
+
+The `getSubAccountSummary()` method retrieves detailed information about a specific sub-account, including balances, positions, and account metadata.
+
+## Method Signature
+
+```typescript
+await client.getSubAccountSummary(
+  request: IApiSubAccountSummaryRequest
+): Promise<IApiSubAccountSummaryResponse>
+```
+
+## Parameters
+
+<ParamField path="request" type="IApiSubAccountSummaryRequest" required>
+  Request object containing sub-account query parameters
+  
+  <Expandable title="Request fields">
+    <ParamField path="sub_account_id" type="string" required>
+      The sub-account ID to retrieve information for
+    </ParamField>
+    
+    <ParamField path="include_positions" type="boolean">
+      Whether to include open positions in the response (default: false)
+    </ParamField>
+    
+    <ParamField path="include_orders" type="boolean">
+      Whether to include active orders in the response (default: false)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="IApiSubAccountSummaryResponse" type="object">
+  The sub-account summary response
+  
+  <Expandable title="Response fields">
+    <ResponseField name="sub_account_id" type="string">
+      The sub-account identifier
+    </ResponseField>
+    
+    <ResponseField name="main_account_id" type="string">
+      The parent main account identifier
+    </ResponseField>
+    
+    <ResponseField name="balances" type="array">
+      Array of balance objects for different currencies
+      
+      <Expandable title="Balance object">
+        <ResponseField name="currency" type="string">
+          The currency code (e.g., "USDT", "BTC")
+        </ResponseField>
+        
+        <ResponseField name="available" type="string">
+          Available balance for the currency
+        </ResponseField>
+        
+        <ResponseField name="total" type="string">
+          Total balance including locked funds
+        </ResponseField>
+        
+        <ResponseField name="locked" type="string">
+          Funds currently locked in orders or positions
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="positions" type="array">
+      Array of open positions (included if requested)
+    </ResponseField>
+    
+    <ResponseField name="orders" type="array">
+      Array of active orders (included if requested)
+    </ResponseField>
+    
+    <ResponseField name="total_value_usd" type="string">
+      Total sub-account value in USD
+    </ResponseField>
+    
+    <ResponseField name="equity" type="string">
+      Current equity value
+    </ResponseField>
+    
+    <ResponseField name="margin_usage" type="string">
+      Current margin usage percentage
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/client';
+
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  tradingAccountId: 'your-account-id',
+  env: EGrvtEnvironment.TESTNET
+});
+
+try {
+  const summary = await client.getSubAccountSummary({
+    sub_account_id: 'sub_account_456',
+    include_positions: true,
+    include_orders: true
+  });
+  
+  console.log('Sub-Account ID:', summary.sub_account_id);
+  console.log('Main Account ID:', summary.main_account_id);
+  console.log('Total Value (USD):', summary.total_value_usd);
+  console.log('Equity:', summary.equity);
+  console.log('Margin Usage:', summary.margin_usage);
+  
+  console.log('\nBalances:');
+  summary.balances.forEach(balance => {
+    console.log(`${balance.currency}:`);
+    console.log(`  Available: ${balance.available}`);
+    console.log(`  Total: ${balance.total}`);
+  });
+  
+  if (summary.positions) {
+    console.log('\nOpen Positions:', summary.positions.length);
+  }
+  
+  if (summary.orders) {
+    console.log('Active Orders:', summary.orders.length);
+  }
+} catch (error) {
+  console.error('Error fetching sub-account summary:', error);
+}
+```
+
+## Response Example
+
+```json
+{
+  "sub_account_id": "sub_account_456",
+  "main_account_id": "main_account_123",
+  "balances": [
+    {
+      "currency": "USDT",
+      "available": "5000.00",
+      "total": "5500.00",
+      "locked": "500.00"
+    },
+    {
+      "currency": "BTC",
+      "available": "0.25",
+      "total": "0.3",
+      "locked": "0.05"
+    }
+  ],
+  "positions": [],
+  "orders": [],
+  "total_value_usd": "15000.00",
+  "equity": "14800.00",
+  "margin_usage": "15.5"
+}
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Sub-Account Monitoring" icon="chart-mixed">
+    Monitor individual trading sub-account performance
+  </Card>
+  
+  <Card title="Risk Management" icon="shield">
+    Track margin usage and equity levels
+  </Card>
+  
+  <Card title="Position Tracking" icon="chart-candlestick">
+    View all open positions for a sub-account
+  </Card>
+  
+  <Card title="Order Management" icon="list-check">
+    Check active orders and available balance
+  </Card>
+</CardGroup>
+
+## Basic Request (Balances Only)
+
+```typescript
+// Retrieve only balance information
+const summary = await client.getSubAccountSummary({
+  sub_account_id: 'sub_account_456'
+});
+
+console.log('Available balances:', summary.balances);
+```
+
+## Detailed Request (With Positions and Orders)
+
+```typescript
+// Retrieve complete sub-account information
+const summary = await client.getSubAccountSummary({
+  sub_account_id: 'sub_account_456',
+  include_positions: true,
+  include_orders: true
+});
+
+console.log('Complete sub-account data:', summary);
+```
+
+## Error Handling
+
+```typescript
+try {
+  const summary = await client.getSubAccountSummary({
+    sub_account_id: 'sub_account_456'
+  });
+  // Process summary
+} catch (error) {
+  if (error.response?.status === 404) {
+    console.error('Sub-account not found');
+  } else if (error.response?.status === 403) {
+    console.error('Access denied to sub-account');
+  } else {
+    console.error('Error:', error.message);
+  }
+}
+```
+
+<Note>
+  This method requires authentication. Ensure your `apiKey` is properly configured and you have access to the specified sub-account.
+</Note>
+
+<Warning>
+  Including positions and orders in the request may increase response time and data size. Only request this additional data when necessary.
+</Warning>
+
+## Related
+
+<CardGroup cols={3}>
+  <Card title="Funding Account Summary" icon="wallet" href="/api/funding-account-summary">
+    Get funding account details
+  </Card>
+  
+  <Card title="GrvtClient" icon="globe" href="/api/grvt-client">
+    Main REST API client
+  </Card>
+  
+  <Card title="Account Management" icon="user-gear" href="/guides/account-management">
+    Account management guide
+  </Card>
+</CardGroup>

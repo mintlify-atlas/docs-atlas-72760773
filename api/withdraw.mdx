@@ -1,0 +1,179 @@
+---
+title: "Withdraw Funds"
+description: "Withdraw funds from your GRVT account to an external Ethereum address"
+---
+
+## Overview
+
+The `withdraw()` method enables you to withdraw funds from your GRVT account to an external Ethereum address. The method automatically handles cryptographic signing of the withdrawal request to ensure security and authenticity.
+
+## Method Signature
+
+```typescript
+withdraw(
+  request: IApiWithdrawalRequest,
+  options?: ISigningOptions
+): Promise<IAckResponse>
+```
+
+## Parameters
+
+<ParamField path="request" type="IApiWithdrawalRequest" required>
+  The withdrawal request object:
+  
+  <ParamField path="from_account_id" type="string" required>
+    The GRVT account ID from which funds will be withdrawn
+  </ParamField>
+  
+  <ParamField path="to_eth_address" type="string" required>
+    The destination Ethereum address to receive the withdrawn funds
+  </ParamField>
+  
+  <ParamField path="currency" type="ECurrency" required>
+    The currency to withdraw (e.g., `ECurrency.USDT`, `ECurrency.USDC`, `ECurrency.ETH`)
+  </ParamField>
+  
+  <ParamField path="num_tokens" type="string" required>
+    The amount to withdraw as a string (to preserve precision)
+  </ParamField>
+  
+  <ParamField path="signature" type="ISignature">
+    Optional signature object. If not provided, the SDK will automatically sign the request using your API secret
+  </ParamField>
+</ParamField>
+
+<ParamField path="options" type="ISigningOptions">
+  Optional signing options for automatic signature generation:
+  
+  <ParamField path="nonce" type="number">
+    Custom nonce for the signature (must be non-negative). If not provided, a random nonce is generated
+  </ParamField>
+  
+  <ParamField path="expiration" type="string">
+    Expiration timestamp in nanoseconds. If not provided, defaults to 24 hours from now. Must be within 30 days
+  </ParamField>
+</ParamField>
+
+## Return Value
+
+<ResponseField name="response" type="IAckResponse" required>
+  An acknowledgment response confirming that the withdrawal request has been received and queued for processing
+</ResponseField>
+
+## Automatic Signing
+
+The `withdraw()` method automatically signs your request if:
+- No `signature` field is provided in the request
+- An API secret is configured in your `GrvtClient`
+
+The SDK generates a cryptographic signature using:
+- Your private key (from API secret)
+- A nonce (random or provided)
+- An expiration time (24 hours or provided)
+
+This ensures that withdrawal requests are authenticated and cannot be tampered with.
+
+<Info>
+  Automatic signing requires that you initialize `GrvtClient` with an `apiSecret`. The signature proves you authorized the withdrawal.
+</Info>
+
+## Example
+
+```typescript
+import { GrvtClient, ECurrency, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Withdraw funds from your account
+// Note: the signature field is optional. If not provided, the SDK will automatically compute it using the apiSecret and provided signing options
+const withdrawResult = await client.withdraw({
+  from_account_id: 'your-account-id',
+  to_eth_address: 'destination-eth-address',
+  currency: ECurrency.USDT,
+  num_tokens: '100'
+});
+
+console.log('Withdrawal request submitted:', withdrawResult);
+```
+
+## Withdrawal Process
+
+1. **Request Submission**: Your withdrawal request is signed and submitted to GRVT
+2. **Security Checks**: GRVT validates the signature and verifies your account balance
+3. **Queue Processing**: The withdrawal is queued for processing
+4. **Bridge Transfer**: Funds are transferred through the bridge to your destination address
+5. **Blockchain Confirmation**: The withdrawal transaction is confirmed on the blockchain
+
+<Info>
+  Withdrawal processing times vary depending on network congestion and the specific blockchain. Bridge withdrawals typically take longer than deposits due to security validation periods.
+</Info>
+
+## Security Features
+
+- **Cryptographic Signatures**: All withdrawals must be cryptographically signed
+- **Nonce Protection**: Prevents replay attacks by ensuring each request has a unique nonce
+- **Expiration Times**: Signatures expire after a set time (default 24 hours, max 30 days)
+- **Balance Verification**: GRVT verifies sufficient balance before processing
+
+<Warning>
+  **Important**: Always verify the destination Ethereum address before submitting a withdrawal. Blockchain transactions are irreversible.
+</Warning>
+
+## Error Handling
+
+The method will throw an error if:
+- No API secret is configured and no signature is provided
+- The provided signature is invalid or expired
+- Insufficient balance in the source account
+- Invalid destination Ethereum address format
+- Authentication fails
+- The withdrawal request is rejected by the API
+
+## Custom Signing Options
+
+You can provide custom signing options to control signature generation:
+
+```typescript
+import { ISigningOptions } from '@grvt/sdk';
+
+const signingOptions: ISigningOptions = {
+  nonce: 12345, // Must be non-negative
+  expiration: '1746093221289693252' // Nanoseconds, must be within 30 days
+};
+
+const withdrawResult = await client.withdraw(
+  {
+    from_account_id: 'your-account-id',
+    to_eth_address: '0xDestination...',
+    currency: ECurrency.USDT,
+    num_tokens: '100'
+  },
+  signingOptions
+);
+```
+
+## Monitoring Withdrawals
+
+After submitting a withdrawal, you can monitor its status using:
+
+```typescript
+// Query withdrawal history
+const withdrawalHistory = await client.getWithdrawalHistory({
+  start_time: '1745600642000785050',
+  end_time: '17588917787741000000'
+});
+```
+
+## Use Cases
+
+- Transfer profits to cold storage wallets
+- Move funds to external DeFi protocols
+- Implement automated withdrawal workflows
+- Support off-ramp functionality
+- Enable programmatic treasury management
+- Facilitate user-initiated withdrawals in your application

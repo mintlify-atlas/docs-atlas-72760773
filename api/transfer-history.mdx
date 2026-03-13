@@ -1,0 +1,155 @@
+---
+title: "Get Transfer History"
+description: "Query historical transfer records within a specified time range"
+---
+
+## Overview
+
+The `getTransferHistory()` method retrieves historical transfer records for your account within a specified time range. This includes all types of transfers: standard transfers, bridge deposits, bridge withdrawals, and internal account transfers.
+
+## Method Signature
+
+```typescript
+getTransferHistory(
+  request: IApiTransferHistoryRequest
+): Promise<IApiTransferHistoryResponse>
+```
+
+## Parameters
+
+<ParamField path="request" type="IApiTransferHistoryRequest" required>
+  The transfer history query request object with the following properties:
+</ParamField>
+
+<ParamField path="request.start_time" type="string" required>
+  Start timestamp in nanoseconds (Unix epoch). Only transfers with event_time greater than or equal to start_time will be returned.
+</ParamField>
+
+<ParamField path="request.end_time" type="string" required>
+  End timestamp in nanoseconds (Unix epoch). Only transfers with event_time less than or equal to end_time will be returned.
+</ParamField>
+
+<ParamField path="request.sub_account_id" type="string">
+  Optional sub-account ID to filter transfers. If not provided, returns transfers for all sub-accounts.
+</ParamField>
+
+<ParamField path="request.transfer_type" type="ETransferType">
+  Optional transfer type filter. Filter by specific transfer types like STANDARD, NON_NATIVE_BRIDGE_DEPOSIT, NON_NATIVE_BRIDGE_WITHDRAW, etc.
+</ParamField>
+
+<ParamField path="request.currency" type="ECurrency">
+  Optional currency filter. Filter transfers by specific currency (e.g., USDT, USDC, BTC, ETH).
+</ParamField>
+
+<ParamField path="request.limit" type="number">
+  Maximum number of records to return. Use for pagination.
+</ParamField>
+
+<ParamField path="request.cursor" type="string">
+  Pagination cursor for fetching subsequent pages of results.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="result" type="IApiTransferHistoryResponse" required>
+  The transfer history response object containing:
+</ResponseField>
+
+<ResponseField name="result.transfers" type="array">
+  Array of transfer records matching the query criteria. Each transfer includes:
+  - Transfer ID
+  - Account IDs (from/to)
+  - Sub-account IDs (from/to)
+  - Currency
+  - Amount (num_tokens)
+  - Transfer type
+  - Event timestamp
+  - Transfer metadata (for bridge operations)
+  - Signature
+</ResponseField>
+
+<ResponseField name="result.next_cursor" type="string">
+  Cursor for fetching the next page of results. If null, no more results are available.
+</ResponseField>
+
+## Timestamp Format
+
+<Info>
+  All timestamps in transfer history queries are in **nanoseconds** since Unix epoch (January 1, 1970 00:00:00 UTC). This provides high precision for time-based queries.
+  
+  To convert from milliseconds to nanoseconds, multiply by 1,000,000:
+  ```typescript
+  const milliseconds = Date.now();
+  const nanoseconds = (milliseconds * 1000000).toString();
+  ```
+</Info>
+
+## Pagination
+
+For large result sets, use the pagination support:
+
+1. Specify a `limit` in your initial request
+2. Check the `next_cursor` field in the response
+3. If `next_cursor` is not null, make another request with the cursor to fetch the next page
+
+## Example
+
+```typescript
+import { GrvtClient, EGrvtEnvironment } from '@grvt/sdk';
+
+// Initialize the client
+const client = new GrvtClient({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  env: EGrvtEnvironment.DEV,
+});
+
+// Query transfer history
+// Note: both start_time and end_time are required for history queries
+const transferHistory = await client.getTransferHistory({
+  start_time: '1745600642000785050', // timestamp in nanoseconds
+  end_time: '17588917787741000000' // timestamp in nanoseconds
+});
+// You can filter more & do pagination with this query if needed, please take a look at the request interface to get more details
+
+// Example with pagination and filters
+const filteredHistory = await client.getTransferHistory({
+  start_time: '1745600642000785050',
+  end_time: '17588917787741000000',
+  sub_account_id: 'sub-account-123',
+  limit: 100,
+  currency: ECurrency.USDT
+});
+
+// Fetch next page if available
+if (filteredHistory.next_cursor) {
+  const nextPage = await client.getTransferHistory({
+    start_time: '1745600642000785050',
+    end_time: '17588917787741000000',
+    cursor: filteredHistory.next_cursor
+  });
+}
+```
+
+## Validation
+
+<Warning>
+  Both `start_time` and `end_time` are **required** parameters. The method will throw an error if either is missing:
+  - "startTime is required"
+  - "endTime is required"
+</Warning>
+
+## Use Cases
+
+- Audit and reconciliation of account transfers
+- Generate transfer reports for specific time periods
+- Track bridge deposit and withdrawal activity
+- Monitor internal account transfers
+- Compliance and record-keeping
+- Integration with accounting systems
+
+## Related Methods
+
+- [Get Deposit History](/api/deposit-history) - Query deposit history
+- [Get Withdrawal History](/api/withdrawal-history) - Query withdrawal history
+- [Subscribe to Transfer Feed](/api/ws-transfer-feed) - Real-time transfer updates via WebSocket
